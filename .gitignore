@@ -18,6 +18,7 @@ dist-ssr/
 .vinxi/
 .tanstack/**
 .nitro/
+.vercel/
 
 # Supabase CLI local state (link, shadow DB)
 supabase/.temp/
@@ -68,4 +69,3 @@ README_MIGRATIONS.md
 .gemini/
 graphify-out/
 .graphifyignore
-

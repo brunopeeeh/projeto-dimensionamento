@@ -253,7 +253,6 @@ export function computeGridCalculations(params: {
       const prCapWaRaw = prWcAgentsForWhats * factorWA;
       const prCapWaRounded = Math.ceil(prCapWaRaw);
       const prWaSurplus = prCapWaRounded - volWA;
-      const prWaDeficitChats = Math.max(0, volWA - prCapWaRounded);
       const prFaltam10 = excelRoundUp(prWaSurplus / -simultaneousWA);
       const prFaltam20 = excelRoundUp(prWaSurplus / -(simultaneousWA * 2));
 

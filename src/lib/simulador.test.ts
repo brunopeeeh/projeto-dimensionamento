@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { applyVolumeSpike, applyAbsence, type VolumeMap } from "./simulador";
+import {
+  applyVolumeSpike,
+  applyAbsence,
+  applyTmaVariation,
+  worstDeficitBlocks,
+  type VolumeMap,
+} from "./simulador";
+import type { RowCalculation } from "@/context/types";
 import { computeGridCalculations } from "./calculations";
 import type { Day, TeamAgent } from "@/context/types";
 
@@ -63,6 +70,67 @@ describe("applyVolumeSpike", () => {
     const result = applyVolumeSpike(volumes(), ["Terça"], -50);
     expect(result["10:00"].Terça).toBe(10);
   });
+
+  it("restringe o pico à faixa de horário quando informada", () => {
+    const result = applyVolumeSpike(volumes(), ["Segunda"], 100, {
+      start: "10:00",
+      end: "10:10",
+    });
+
+    expect(result["10:00"].Segunda).toBe(20); // dentro da faixa
+    expect(result["10:10"].Segunda).toBe(5); // fim é exclusivo
+  });
+});
+
+describe("worstDeficitBlocks", () => {
+  // waFaltam10 é indexado por dia: [Segunda, Terça, Quarta, ...].
+  const row = (time: string, faltam: number[]): RowCalculation =>
+    ({ time, waFaltam10: faltam }) as RowCalculation;
+
+  it("ordena do pior para o menos pior e ignora blocos sem déficit", () => {
+    const base = [row("10:00", [1, 0]), row("10:10", [0, 0])];
+    const sim = [row("10:00", [4, 0]), row("10:10", [2, 0])];
+
+    const result = worstDeficitBlocks(base, sim);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ day: "Segunda", time: "10:00", base: 1, sim: 4 });
+    expect(result[1]).toEqual({ day: "Segunda", time: "10:10", base: 0, sim: 2 });
+  });
+
+  it("no empate, prioriza o bloco que o cenário mais piorou", () => {
+    const base = [row("10:00", [2, 0]), row("10:10", [0, 0])];
+    const sim = [row("10:00", [3, 0]), row("10:10", [3, 0])];
+
+    const result = worstDeficitBlocks(base, sim);
+
+    expect(result[0].time).toBe("10:10"); // piorou 3, contra 1 do outro
+  });
+
+  it("respeita o limite", () => {
+    const sim = ["10:00", "10:10", "10:20"].map((t) => row(t, [5, 5]));
+    expect(worstDeficitBlocks([], sim, 4)).toHaveLength(4);
+  });
+});
+
+describe("applyTmaVariation", () => {
+  const factors = { Segunda: 6, Terça: 12 } as Record<Day, number>;
+
+  it("derruba a capacidade por agente quando o TMA sobe", () => {
+    const result = applyTmaVariation(factors, 20);
+
+    expect(result.Segunda).toBeCloseTo(5, 5); // 6 / 1,2
+    expect(result.Terça).toBeCloseTo(10, 5);
+  });
+
+  it("aumenta a capacidade quando o TMA cai", () => {
+    expect(applyTmaVariation(factors, -50).Segunda).toBeCloseTo(12, 5);
+  });
+
+  it("é no-op com 0% e ignora variação sem sentido físico (<= -100%)", () => {
+    expect(applyTmaVariation(factors, 0)).toBe(factors);
+    expect(applyTmaVariation(factors, -100)).toBe(factors);
+  });
 });
 
 describe("applyAbsence", () => {
@@ -93,6 +161,29 @@ describe("applyAbsence", () => {
   it("é no-op sem ausentes", () => {
     const original = [agent("a1")];
     expect(applyAbsence(original, new Set(), ["Segunda"])).toBe(original);
+  });
+
+  it("zera só os blocos da faixa quando a ausência é parcial no dia", () => {
+    const result = applyAbsence([agent("a1")], new Set(["a1"]), ["Segunda"], {
+      start: "10:00",
+      end: "10:20",
+    });
+
+    expect(result[0].active).toBe(true);
+    expect(result[0].schedules.Segunda!.intervals["10:00"]).toBe("folga");
+    expect(result[0].schedules.Segunda!.intervals["10:20"]).toBe("pausa"); // fora da faixa
+  });
+
+  it("com faixa e sem dias, aplica a faixa em todos os dias sem desativar o agente", () => {
+    const result = applyAbsence([agent("a1")], new Set(["a1"]), [], {
+      start: "10:00",
+      end: "10:20",
+    });
+
+    expect(result[0].active).toBe(true);
+    expect(result[0].schedules.Segunda!.intervals["10:00"]).toBe("folga");
+    expect(result[0].schedules.Terça!.intervals["10:00"]).toBe("folga");
+    expect(result[0].schedules.Segunda!.intervals["10:20"]).toBe("pausa");
   });
 });
 

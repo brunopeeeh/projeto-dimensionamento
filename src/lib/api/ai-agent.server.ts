@@ -50,11 +50,6 @@ function getEnvVar(key: string): string {
 const NVIDIA_URL_DEFAULT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_DEFAULT_MODEL = "z-ai/glm-5.2";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
-const DASHSCOPE_URL_DEFAULT =
-  "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions";
-const DEFAULT_MODEL = "z-ai/glm-5.2";
-const DASHSCOPE_DEFAULT_MODEL = "qwen3-max";
 const CACHE_TTL_HOURS = 24;
 const MAX_RETRIES = 3;
 
