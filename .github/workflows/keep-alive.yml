@@ -15,30 +15,39 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          # Remove possíveis aspas extras ou espaços acidentais
-          URL=$(echo "$SUPABASE_URL" | sed -e 's/^[[:space:]"'\''"]*//' -e 's/[[:space:]"'\''"]*$//')
-          KEY=$(echo "$SUPABASE_ANON_KEY" | sed -e 's/^[[:space:]"'\''"]*//' -e 's/[[:space:]"'\''"]*$//')
+          # Limpeza de URL e KEY (remove aspas duplas, simples e espaços)
+          CLEAN_URL=$(echo "$SUPABASE_URL" | tr -d '"' | tr -d "'" | xargs)
+          CLEAN_KEY=$(echo "$SUPABASE_ANON_KEY" | tr -d '"' | tr -d "'" | xargs)
 
-          if [ -z "$URL" ] || [ -z "$KEY" ]; then
-            echo "::error::As secrets de URL e Chave Anon do Supabase não foram encontradas!"
-            echo "Configure no GitHub (Settings > Secrets and variables > Actions > Secrets):"
-            echo "  - SUPABASE_URL (ou VITE_SUPABASE_URL)"
-            echo "  - SUPABASE_ANON_KEY (ou VITE_SUPABASE_ANON_KEY)"
+          if [ -z "$CLEAN_URL" ] || [ -z "$CLEAN_KEY" ]; then
+            echo "::error::Secrets SUPABASE_URL ou SUPABASE_ANON_KEY não encontradas."
+            echo "Configure em Settings > Secrets and variables > Actions > Secrets."
             exit 1
           fi
 
-          # Remove barra final da URL se houver
-          BASE_URL="${URL%/}"
+          # Garante protocolo https:// caso tenha sido omitido
+          if [[ ! "$CLEAN_URL" =~ ^https?:// ]]; then
+            CLEAN_URL="https://$CLEAN_URL"
+          fi
 
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: $KEY" \
-            -H "Authorization: Bearer $KEY" \
-            "$BASE_URL/rest/v1/")
+          # Remove barra final
+          BASE_URL="${CLEAN_URL%/}"
+
+          echo "Disparando ping para: $BASE_URL/rest/v1/"
+
+          RESPONSE=$(curl -s -S -w "\n%{http_code}" \
+            -H "apikey: $CLEAN_KEY" \
+            -H "Authorization: Bearer $CLEAN_KEY" \
+            "$BASE_URL/rest/v1/" 2>&1 || true)
+
+          STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
 
           echo "Supabase HTTP Status: $STATUS"
 
-          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+          if [[ "$STATUS" =~ ^[0-9]+$ ]] && [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
             echo "Ping realizado com sucesso! Projeto Supabase mantido ativo."
           else
-            echo "::warning::Status retornado foi $STATUS"
+            echo "::error::Falha no ping. Detalhes: $STATUS | Resposta/Erro: $BODY"
+            exit 1
           fi
