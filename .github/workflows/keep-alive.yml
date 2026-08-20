@@ -11,14 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::As secrets SUPABASE_URL ou SUPABASE_ANON_KEY não foram configuradas no repositório!"
+            echo "Acesse Settings > Secrets and variables > Actions > Secrets e adicione-as."
+            exit 1
+          fi
+
+          # Remove barra final da URL se houver
+          BASE_URL="${SUPABASE_URL%/}"
+
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/")
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$BASE_URL/rest/v1/")
+
           echo "Supabase HTTP Status: $STATUS"
+
           if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
-            echo "Ping realizado com sucesso!"
+            echo "Ping realizado com sucesso! Projeto Supabase mantido ativo."
           else
-            echo "Aviso: Status retornado foi $STATUS"
+            echo "::warning::Status retornado foi $STATUS"
           fi
