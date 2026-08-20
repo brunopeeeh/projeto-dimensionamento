@@ -12,12 +12,14 @@ jobs:
     steps:
       - name: Ping Supabase REST API
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "::error::As secrets SUPABASE_URL ou SUPABASE_ANON_KEY não foram configuradas no repositório!"
-            echo "Acesse Settings > Secrets and variables > Actions > Secrets e adicione-as."
+            echo "::error::As secrets de URL e Chave Anon do Supabase não foram encontradas!"
+            echo "Configure no GitHub (Settings > Secrets and variables > Actions > Secrets):"
+            echo "  - SUPABASE_URL (ou VITE_SUPABASE_URL)"
+            echo "  - SUPABASE_ANON_KEY (ou VITE_SUPABASE_ANON_KEY)"
             exit 1
           fi
 
