@@ -15,7 +15,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+          # Remove possíveis aspas extras ou espaços acidentais
+          URL=$(echo "$SUPABASE_URL" | sed -e 's/^[[:space:]"'\''"]*//' -e 's/[[:space:]"'\''"]*$//')
+          KEY=$(echo "$SUPABASE_ANON_KEY" | sed -e 's/^[[:space:]"'\''"]*//' -e 's/[[:space:]"'\''"]*$//')
+
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
             echo "::error::As secrets de URL e Chave Anon do Supabase não foram encontradas!"
             echo "Configure no GitHub (Settings > Secrets and variables > Actions > Secrets):"
             echo "  - SUPABASE_URL (ou VITE_SUPABASE_URL)"
@@ -24,11 +28,11 @@ jobs:
           fi
 
           # Remove barra final da URL se houver
-          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${URL%/}"
 
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "apikey: $KEY" \
+            -H "Authorization: Bearer $KEY" \
             "$BASE_URL/rest/v1/")
 
           echo "Supabase HTTP Status: $STATUS"
