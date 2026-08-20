@@ -10,7 +10,7 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Ping Supabase REST & Auth API
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
@@ -33,21 +33,23 @@ jobs:
           # Remove barra final
           BASE_URL="${CLEAN_URL%/}"
 
-          echo "Disparando ping para: $BASE_URL/rest/v1/"
-
-          RESPONSE=$(curl -s -S -w "\n%{http_code}" \
+          echo "1. Disparando ping para Auth Health ($BASE_URL/auth/v1/health)..."
+          AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "apikey: $CLEAN_KEY" \
             -H "Authorization: Bearer $CLEAN_KEY" \
-            "$BASE_URL/rest/v1/" 2>&1 || true)
+            "$BASE_URL/auth/v1/health")
+          echo "Auth Health Status: $AUTH_STATUS"
 
-          STATUS=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "2. Disparando consulta ao banco Postgres via PostgREST..."
+          REST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $CLEAN_KEY" \
+            -H "Authorization: Bearer $CLEAN_KEY" \
+            "$BASE_URL/rest/v1/parametros_operacionais?select=mes_id&limit=1")
+          echo "Database Rest Status: $REST_STATUS"
 
-          echo "Supabase HTTP Status: $STATUS"
-
-          if [[ "$STATUS" =~ ^[0-9]+$ ]] && [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
-            echo "Ping realizado com sucesso! Projeto Supabase mantido ativo."
+          if [ "$AUTH_STATUS" -eq 200 ] || [ "$REST_STATUS" -eq 200 ]; then
+            echo "✅ Ping realizado com sucesso! Projeto Supabase e banco de dados ativos."
           else
-            echo "::error::Falha no ping. Detalhes: $STATUS | Resposta/Erro: $BODY"
+            echo "::error::Falha no ping. Auth: $AUTH_STATUS, REST: $REST_STATUS"
             exit 1
           fi
