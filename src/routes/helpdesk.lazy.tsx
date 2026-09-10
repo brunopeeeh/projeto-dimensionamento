@@ -2,11 +2,11 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { TimeGridSheet } from "@/components/TimeGridSheet";
 import { useDimensionamento } from "@/context/DimensionamentoContext";
 
-export const Route = createLazyFileRoute("/webchat")({
-  component: WebchatComponent,
+export const Route = createLazyFileRoute("/helpdesk")({
+  component: HelpdeskComponent,
 });
 
-function WebchatComponent() {
+function HelpdeskComponent() {
   const { currentMonth } = useDimensionamento();
 
   return (
@@ -15,12 +15,12 @@ function WebchatComponent() {
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {currentMonth}
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Webchat</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Helpdesk</h1>
       </div>
       <TimeGridSheet
-        mode="webchat"
-        title="Volume × Capacity - Webchat"
-        subtitle="Edite Volume ou Capacity Arredondado para ver resultado e déficit atualizarem."
+        mode="helpdesk"
+        title="Volume × Capacity - Helpdesk"
+        subtitle="Edite o Volume para ver Resultado e déficit atualizarem. Fila única — sem transbordo entre canais."
       />
     </div>
   );

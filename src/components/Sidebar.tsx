@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   Users,
-  MessageSquare,
-  MessageCircle,
+  Headphones,
   ClipboardCheck,
   BarChart3,
   Calendar,
@@ -19,8 +18,7 @@ export const NAVIGATION_ITEMS = [
   { to: "/escala", label: "Gestão de Escalas", icon: Calendar },
   { to: "/previsao-escala", label: "Previsão da Escala", icon: CalendarCheck },
   { to: "/capacidade", label: "Capacity por Agente", icon: Users },
-  { to: "/webchat", label: "Webchat", icon: MessageSquare },
-  { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { to: "/helpdesk", label: "Helpdesk", icon: Headphones },
   { to: "/contratacoes", label: "Prova Real", icon: ClipboardCheck },
   { to: "/simulador", label: "Simulador de Cenários", icon: FlaskConical },
   { to: "/calculadora-anual", label: "Calculadora Anual", icon: CalendarRange },

@@ -70,29 +70,17 @@ function parsePowerBICsv(csv: string): Record<string, Record<Day, number>> {
 }
 
 export function useDataImport(
-  setWebchatVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
-  setWhatsappVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
+  setHelpdeskVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
 ) {
   const importPowerBIData = useCallback(
-    (webchatCsv: string, whatsappCsv: string): boolean => {
+    (helpdeskCsv: string): boolean => {
       try {
-        if (webchatCsv) {
-          const wcData = parsePowerBICsv(webchatCsv);
-          setWebchatVolumes((prev) => {
+        if (helpdeskCsv) {
+          const data = parsePowerBICsv(helpdeskCsv);
+          setHelpdeskVolumes((prev) => {
             const updated = { ...prev };
-            Object.keys(wcData).forEach((t) => {
-              if (updated[t]) updated[t] = wcData[t];
-            });
-            return updated;
-          });
-        }
-
-        if (whatsappCsv) {
-          const waData = parsePowerBICsv(whatsappCsv);
-          setWhatsappVolumes((prev) => {
-            const updated = { ...prev };
-            Object.keys(waData).forEach((t) => {
-              if (updated[t]) updated[t] = waData[t];
+            Object.keys(data).forEach((t) => {
+              if (updated[t]) updated[t] = data[t];
             });
             return updated;
           });
@@ -104,13 +92,12 @@ export function useDataImport(
         return false;
       }
     },
-    [setWebchatVolumes, setWhatsappVolumes],
+    [setHelpdeskVolumes],
   );
 
-  const updateChannelVolumes = useCallback(
-    (channel: "webchat" | "whatsapp", newVolumes: Record<string, Record<Day, number>>) => {
-      const targetSetter = channel === "webchat" ? setWebchatVolumes : setWhatsappVolumes;
-      targetSetter((prev) => {
+  const updateHelpdeskVolumes = useCallback(
+    (newVolumes: Record<string, Record<Day, number>>) => {
+      setHelpdeskVolumes((prev) => {
         const updated = { ...prev };
         Object.keys(newVolumes).forEach((t) => {
           if (updated[t]) {
@@ -125,8 +112,8 @@ export function useDataImport(
         return updated;
       });
     },
-    [setWebchatVolumes, setWhatsappVolumes],
+    [setHelpdeskVolumes],
   );
 
-  return { importPowerBIData, updateChannelVolumes };
+  return { importPowerBIData, updateHelpdeskVolumes };
 }

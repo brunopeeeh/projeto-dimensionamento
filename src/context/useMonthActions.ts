@@ -15,8 +15,7 @@ type CreateMonthParams = {
   teamAgents: TeamAgent[];
   capacityAgents: CapacityAgent[];
   tmaFactors: Record<Day, number>;
-  simultaneousWC: number;
-  simultaneousWA: number;
+  simultaneous: number;
   scenarios: ScenarioParams;
   newHires: NewAgentHire[];
 };
@@ -24,8 +23,7 @@ type CreateMonthParams = {
 export function useMonthActions(
   setAvailableMonths: React.Dispatch<React.SetStateAction<string[]>>,
   setCurrentMonth: React.Dispatch<React.SetStateAction<string>>,
-  setWebchatVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
-  setWhatsappVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
+  setHelpdeskVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
   saveMonthDataToSupabase: (monthName: string) => Promise<void>,
   loadMonthDataFromSupabase: (monthName: string) => Promise<void>,
@@ -70,15 +68,12 @@ export function useMonthActions(
       const snap = getSnapshot();
       const { timeBlocks } = snap;
 
-      const emptyWcVolumes: Record<string, Record<Day, number>> = {};
-      const emptyWaVolumes: Record<string, Record<Day, number>> = {};
+      const emptyVolumes: Record<string, Record<Day, number>> = {};
 
       timeBlocks.forEach((time) => {
-        emptyWcVolumes[time] = {} as Record<Day, number>;
-        emptyWaVolumes[time] = {} as Record<Day, number>;
+        emptyVolumes[time] = {} as Record<Day, number>;
         DAYS.forEach((day) => {
-          emptyWcVolumes[time][day] = 0;
-          emptyWaVolumes[time][day] = 0;
+          emptyVolumes[time][day] = 0;
         });
       });
 
@@ -86,8 +81,7 @@ export function useMonthActions(
       if (!client) {
         setAvailableMonths((prev) => [...prev, newMonthName]);
         setCurrentMonth(newMonthName);
-        setWebchatVolumes(emptyWcVolumes);
-        setWhatsappVolumes(emptyWaVolumes);
+        setHelpdeskVolumes(emptyVolumes);
         return;
       }
 
@@ -115,16 +109,14 @@ export function useMonthActions(
           client.from("volumes_chamados").insert([
             {
               mes_id: newMesId,
-              webchat_volumes: emptyWcVolumes,
-              whatsapp_volumes: emptyWaVolumes,
+              helpdesk_volumes: emptyVolumes,
             },
           ]),
           client.from("parametros_operacionais").insert([
             {
               mes_id: newMesId,
               tma_factors: snap.tmaFactors,
-              simultaneous_wc: snap.simultaneousWC,
-              simultaneous_wa: snap.simultaneousWA,
+              simultaneous_helpdesk: snap.simultaneous,
               scenarios: snap.scenarios,
               new_hires: snap.newHires.map((nh) => ({ ...nh, active: true })),
             },
@@ -141,8 +133,7 @@ export function useMonthActions(
         const updatedMonths = monthsData.map((m: { nome: string }) => m.nome);
         setAvailableMonths(updatedMonths);
         setCurrentMonth(newMonthName);
-        setWebchatVolumes(emptyWcVolumes);
-        setWhatsappVolumes(emptyWaVolumes);
+        setHelpdeskVolumes(emptyVolumes);
       } catch (err) {
         console.error(`Failed to create month ${newMonthName}:`, err);
       } finally {
@@ -155,8 +146,7 @@ export function useMonthActions(
       setIsLoading,
       setAvailableMonths,
       setCurrentMonth,
-      setWebchatVolumes,
-      setWhatsappVolumes,
+      setHelpdeskVolumes,
     ],
   );
 

@@ -4,8 +4,7 @@ import { toast } from "sonner";
 import { matchAgentName } from "@/lib/agents";
 import { computeDynamicTmaFactors, computeGridCalculations } from "@/lib/calculations";
 import {
-  DEFAULT_SIMULTANEOUS_WC,
-  DEFAULT_SIMULTANEOUS_WA,
+  DEFAULT_SIMULTANEOUS_HELPDESK,
   DEFAULT_SCENARIO_PARAMS,
   DEFAULT_MONTH_NAME,
   DEFAULT_MONTHS,
@@ -60,8 +59,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
 
-  const [webchatVolumes, setWebchatVolumes] = useState(initialData.webchatVolumes);
-  const [whatsappVolumes, setWhatsappVolumes] = useState(initialData.whatsappVolumes);
+  const [helpdeskVolumes, setHelpdeskVolumes] = useState(initialData.helpdeskVolumes);
 
   const [capacityAgents, setCapacityAgents] = useState<CapacityAgent[]>(() => {
     try {
@@ -73,8 +71,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   });
 
   const [tmaFactors, setTmaFactors] = useState<Record<Day, number>>(DEFAULT_TMA_FACTORS);
-  const [simultaneousWC, setSimultaneousWC] = useState(DEFAULT_SIMULTANEOUS_WC);
-  const [simultaneousWA, setSimultaneousWA] = useState(DEFAULT_SIMULTANEOUS_WA);
+  const [simultaneous, setSimultaneous] = useState(DEFAULT_SIMULTANEOUS_HELPDESK);
 
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => {
     try {
@@ -113,36 +110,22 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     () => ({
       teamAgents,
       capacityAgents,
-      webchatVolumes,
-      whatsappVolumes,
+      helpdeskVolumes,
       tmaFactors,
-      simultaneousWC,
-      simultaneousWA,
+      simultaneous,
       scenarios,
       newHires,
     }),
-    [
-      teamAgents,
-      capacityAgents,
-      webchatVolumes,
-      whatsappVolumes,
-      tmaFactors,
-      simultaneousWC,
-      simultaneousWA,
-      scenarios,
-      newHires,
-    ],
+    [teamAgents, capacityAgents, helpdeskVolumes, tmaFactors, simultaneous, scenarios, newHires],
   );
 
   const persistenceSetters = useMemo(
     () => ({
       setTeamAgents,
       setCapacityAgents,
-      setWebchatVolumes,
-      setWhatsappVolumes,
+      setHelpdeskVolumes,
       setTmaFactors,
-      setSimultaneousWC,
-      setSimultaneousWA,
+      setSimultaneous,
       setScenarios,
       setNewHires,
       setAvailableMonths,
@@ -159,21 +142,14 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     persistenceSnapshot,
     persistenceSetters,
     {
-      webchatVolumes: initialData.webchatVolumes,
-      whatsappVolumes: initialData.whatsappVolumes,
+      helpdeskVolumes: initialData.helpdeskVolumes,
       capacityAgents: initialCapacityAgents,
     },
   );
 
   // ---- Simple state updaters ----
-  const updateTimeBlockVolume = (
-    time: string,
-    day: Day,
-    channel: "webchat" | "whatsapp",
-    value: number,
-  ) => {
-    const targetSetter = channel === "webchat" ? setWebchatVolumes : setWhatsappVolumes;
-    targetSetter((prev) => ({
+  const updateTimeBlockVolume = (time: string, day: Day, value: number) => {
+    setHelpdeskVolumes((prev) => ({
       ...prev,
       [time]: {
         ...prev[time],
@@ -189,12 +165,8 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     }));
   };
 
-  const updateSimultaneous = (channel: "webchat" | "whatsapp", value: number) => {
-    if (channel === "webchat") {
-      setSimultaneousWC(Math.max(1, value));
-    } else {
-      setSimultaneousWA(Math.max(1, value));
-    }
+  const updateSimultaneous = (value: number) => {
+    setSimultaneous(Math.max(1, value));
   };
 
   const updateScenario = (key: keyof ScenarioParams, value: number) => {
@@ -292,8 +264,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
         client.from("volumes_chamados").upsert(
           {
             mes_id: mesId,
-            webchat_volumes: initialData.webchatVolumes,
-            whatsapp_volumes: initialData.whatsappVolumes,
+            helpdesk_volumes: initialData.helpdeskVolumes,
           },
           { onConflict: "mes_id" },
         ),
@@ -301,8 +272,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
           {
             mes_id: mesId,
             tma_factors: DEFAULT_TMA_FACTORS,
-            simultaneous_wc: DEFAULT_SIMULTANEOUS_WC,
-            simultaneous_wa: DEFAULT_SIMULTANEOUS_WA,
+            simultaneous_helpdesk: DEFAULT_SIMULTANEOUS_HELPDESK,
             scenarios: DEFAULT_SCENARIO_PARAMS,
             new_hires: DEFAULT_NEW_HIRES,
           },
@@ -311,13 +281,11 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       ]);
 
       // Update React state after database confirmation
-      setWebchatVolumes(initialData.webchatVolumes);
-      setWhatsappVolumes(initialData.whatsappVolumes);
+      setHelpdeskVolumes(initialData.helpdeskVolumes);
       setTeamAgents([]);
       setTmaFactors(DEFAULT_TMA_FACTORS);
       setCapacityAgents(initialCapacityAgents);
-      setSimultaneousWC(DEFAULT_SIMULTANEOUS_WC);
-      setSimultaneousWA(DEFAULT_SIMULTANEOUS_WA);
+      setSimultaneous(DEFAULT_SIMULTANEOUS_HELPDESK);
       setScenarios(DEFAULT_SCENARIO_PARAMS);
       setNewHires(DEFAULT_NEW_HIRES);
 
@@ -341,10 +309,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   );
 
   // ---- Data import (extracted hook) ----
-  const { importPowerBIData, updateChannelVolumes } = useDataImport(
-    setWebchatVolumes,
-    setWhatsappVolumes,
-  );
+  const { importPowerBIData, updateHelpdeskVolumes } = useDataImport(setHelpdeskVolumes);
 
   // ---- Month management (extracted hook) ----
   const createMonthSnapshotRef = useRef({
@@ -353,8 +318,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     teamAgents,
     capacityAgents,
     tmaFactors,
-    simultaneousWC,
-    simultaneousWA,
+    simultaneous,
     scenarios,
     newHires,
   });
@@ -364,8 +328,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     teamAgents,
     capacityAgents,
     tmaFactors,
-    simultaneousWC,
-    simultaneousWA,
+    simultaneous,
     scenarios,
     newHires,
   };
@@ -373,8 +336,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   const { changeActiveMonth, createNewMonth, refreshCurrentMonth } = useMonthActions(
     setAvailableMonths,
     setCurrentMonth,
-    setWebchatVolumes,
-    setWhatsappVolumes,
+    setHelpdeskVolumes,
     setIsLoading,
     saveMonthDataToSupabase,
     loadMonthDataFromSupabase,
@@ -392,24 +354,13 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       computeGridCalculations({
         days: DAYS,
         timeBlocks,
-        webchatVolumes,
-        whatsappVolumes,
+        helpdeskVolumes,
         teamAgents,
         dynamicTmaFactors,
-        simultaneousWC,
-        simultaneousWA,
+        simultaneous,
         newHires,
       }),
-    [
-      timeBlocks,
-      webchatVolumes,
-      whatsappVolumes,
-      teamAgents,
-      dynamicTmaFactors,
-      simultaneousWC,
-      simultaneousWA,
-      newHires,
-    ],
+    [timeBlocks, helpdeskVolumes, teamAgents, dynamicTmaFactors, simultaneous, newHires],
   );
 
   // ---- Stable action references ----
@@ -431,7 +382,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     resetAll,
     executeResetAll,
     importPowerBIData,
-    updateChannelVolumes,
+    updateHelpdeskVolumes,
   });
   actionsRef.current = {
     changeActiveMonth,
@@ -451,7 +402,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     resetAll,
     executeResetAll,
     importPowerBIData,
-    updateChannelVolumes,
+    updateHelpdeskVolumes,
   };
 
   const stableActions = useMemo(
@@ -459,15 +410,10 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       changeActiveMonth: (monthName: string) => actionsRef.current.changeActiveMonth(monthName),
       createNewMonth: (newMonthName: string) => actionsRef.current.createNewMonth(newMonthName),
       refreshCurrentMonth: () => actionsRef.current.refreshCurrentMonth(),
-      updateTimeBlockVolume: (
-        time: string,
-        day: Day,
-        channel: "webchat" | "whatsapp",
-        value: number,
-      ) => actionsRef.current.updateTimeBlockVolume(time, day, channel, value),
+      updateTimeBlockVolume: (time: string, day: Day, value: number) =>
+        actionsRef.current.updateTimeBlockVolume(time, day, value),
       updateTmaFactor: (day: Day, value: number) => actionsRef.current.updateTmaFactor(day, value),
-      updateSimultaneous: (channel: "webchat" | "whatsapp", value: number) =>
-        actionsRef.current.updateSimultaneous(channel, value),
+      updateSimultaneous: (value: number) => actionsRef.current.updateSimultaneous(value),
       toggleIntervalStatus: (agentId: string, day: Day, time20: string) =>
         actionsRef.current.toggleIntervalStatus(agentId, day, time20),
       applyPresetShift: (
@@ -499,12 +445,9 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
         actionsRef.current.updateCapacityAgent(name, value),
       resetAll: () => actionsRef.current.resetAll(),
       executeResetAll: () => actionsRef.current.executeResetAll(),
-      importPowerBIData: (webchatCsv: string, whatsappCsv: string) =>
-        actionsRef.current.importPowerBIData(webchatCsv, whatsappCsv),
-      updateChannelVolumes: (
-        channel: "webchat" | "whatsapp",
-        newVolumes: Record<string, Record<Day, number>>,
-      ) => actionsRef.current.updateChannelVolumes(channel, newVolumes),
+      importPowerBIData: (helpdeskCsv: string) => actionsRef.current.importPowerBIData(helpdeskCsv),
+      updateHelpdeskVolumes: (newVolumes: Record<string, Record<Day, number>>) =>
+        actionsRef.current.updateHelpdeskVolumes(newVolumes),
     }),
     [],
   );
@@ -515,11 +458,9 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       totals,
       kpis,
       timeBlocks,
-      webchatVolumes,
-      whatsappVolumes,
+      helpdeskVolumes,
       tmaFactors: dynamicTmaFactors,
-      simultaneousWC,
-      simultaneousWA,
+      simultaneous,
       teamAgents,
       newHires,
       scenarios,
@@ -541,11 +482,9 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       totals,
       kpis,
       timeBlocks,
-      webchatVolumes,
-      whatsappVolumes,
+      helpdeskVolumes,
       dynamicTmaFactors,
-      simultaneousWC,
-      simultaneousWA,
+      simultaneous,
       teamAgents,
       newHires,
       scenarios,

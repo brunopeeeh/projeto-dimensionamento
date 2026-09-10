@@ -30,6 +30,7 @@
     "@tanstack/react-virtual": "^3.14.5",
     "@tanstack/router-plugin": "^1.167.28",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

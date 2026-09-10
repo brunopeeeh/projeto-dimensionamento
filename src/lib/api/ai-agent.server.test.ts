@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { validateSuggestions, toNewAgentHires, type AiAgentSuggestion } from "./ai-agent.server";
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  validateSuggestions,
+  toNewAgentHires,
+  type AiAgentSuggestion,
+} from "./ai-agent.server";
 
 // Mirrors the 4 valid folga combos from the business rules (R2 in buildSystemPrompt,
 // and VALID_DAY_OFF_COMBOS in solver.ts) so tests can build compliant agents easily.
@@ -101,5 +107,30 @@ describe("toNewAgentHires", () => {
     expect(hires[0].days).toEqual(["Terça", "Quarta", "Quinta", "Sexta", "Sábado"]);
     expect(hires[0].start_time).toBe("09:00");
     expect(hires[0].active).toBe(true);
+  });
+});
+
+describe("AI prompts", () => {
+  it("defines the input as the consolidated deficit of a single Helpdesk queue", () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain("ÚNICA FILA DE HELPDESK");
+    expect(prompt).toContain("Não separe a análise por canal ou plataforma");
+    expect(prompt).toContain("Care IA como agente humano");
+    expect(prompt).toContain("Yooga Suporte ou Care IA à lista de agentes sugeridos");
+    expect(prompt).toContain("ÚLTIMO horário permitido para novas contratações é 15:00 às 00:00");
+    expect(prompt).toContain("não sugira turnos nem contratações para a madrugada");
+  });
+
+  it("defines positive values as missing human agents and reinforces this in the user input", () => {
+    const systemPrompt = buildSystemPrompt();
+    const userPrompt = buildUserPrompt("Agosto 2026", [
+      { start: "07:00", end: "07:10", seg: 1, ter: 0, qua: 0, qui: 0, sex: 0, sab: 0, dom: 0 },
+    ]);
+
+    expect(systemPrompt).toContain("0 = não falta agente");
+    expect(systemPrompt).toContain("1 = falta 1 agente humano");
+    expect(systemPrompt).toContain("Valores negativos não serão enviados");
+    expect(userPrompt).toContain("defasagem consolidada da fila única de Helpdesk");
   });
 });

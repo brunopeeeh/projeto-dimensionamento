@@ -1,6 +1,7 @@
 import type { Day, NewAgentHire } from "@/context/DimensionamentoContext";
 import { DAYS } from "@/context/DimensionamentoContext";
 import { getDefaultLunchTime } from "@/lib/time";
+import { hasFixedOvernightCoverage } from "@/lib/operating-hours";
 
 type DayKey = "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom";
 
@@ -46,7 +47,7 @@ function add10Min(t: string): string {
 
 interface DeficitCalculationRow {
   time: string;
-  waFaltam10: number[];
+  faltam10: number[];
 }
 
 /**
@@ -77,7 +78,10 @@ export function buildDeficitTable(rowCalculations: DeficitCalculationRow[]): Def
     };
     let hasDeficit = false;
     DAYS.forEach((day, dIdx) => {
-      const val = r.waFaltam10[dIdx] ?? 0;
+      // Madrugada é coberta por uma posição fixa da escala (Maria Luiza),
+      // não por novas contratações sugeridas pela IA/otimizador.
+      if (hasFixedOvernightCoverage(day, time)) return;
+      const val = r.faltam10[dIdx] ?? 0;
       const deficit = Math.max(0, val);
       row[DAY_TO_SHORT[day]] = deficit;
       if (deficit > 0) hasDeficit = true;

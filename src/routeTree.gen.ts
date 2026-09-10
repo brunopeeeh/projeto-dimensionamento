@@ -9,27 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WhatsappRouteImport } from './routes/whatsapp'
-import { Route as WebchatRouteImport } from './routes/webchat'
 import { Route as SimuladorRouteImport } from './routes/simulador'
 import { Route as PrevisaoEscalaRouteImport } from './routes/previsao-escala'
 import { Route as PainelRouteImport } from './routes/painel'
+import { Route as HelpdeskRouteImport } from './routes/helpdesk'
 import { Route as EscalaRouteImport } from './routes/escala'
 import { Route as ContratacoesRouteImport } from './routes/contratacoes'
 import { Route as CapacidadeRouteImport } from './routes/capacidade'
 import { Route as CalculadoraAnualRouteImport } from './routes/calculadora-anual'
 import { Route as IndexRouteImport } from './routes/index'
 
-const WhatsappRoute = WhatsappRouteImport.update({
-  id: '/whatsapp',
-  path: '/whatsapp',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/whatsapp.lazy').then((d) => d.Route))
-const WebchatRoute = WebchatRouteImport.update({
-  id: '/webchat',
-  path: '/webchat',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/webchat.lazy').then((d) => d.Route))
 const SimuladorRoute = SimuladorRouteImport.update({
   id: '/simulador',
   path: '/simulador',
@@ -47,6 +36,11 @@ const PainelRoute = PainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/painel.lazy').then((d) => d.Route))
+const HelpdeskRoute = HelpdeskRouteImport.update({
+  id: '/helpdesk',
+  path: '/helpdesk',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() => import('./routes/helpdesk.lazy').then((d) => d.Route))
 const EscalaRoute = EscalaRouteImport.update({
   id: '/escala',
   path: '/escala',
@@ -81,11 +75,10 @@ export interface FileRoutesByFullPath {
   '/capacidade': typeof CapacidadeRoute
   '/contratacoes': typeof ContratacoesRoute
   '/escala': typeof EscalaRoute
+  '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
   '/simulador': typeof SimuladorRoute
-  '/webchat': typeof WebchatRoute
-  '/whatsapp': typeof WhatsappRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -93,11 +86,10 @@ export interface FileRoutesByTo {
   '/capacidade': typeof CapacidadeRoute
   '/contratacoes': typeof ContratacoesRoute
   '/escala': typeof EscalaRoute
+  '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
   '/simulador': typeof SimuladorRoute
-  '/webchat': typeof WebchatRoute
-  '/whatsapp': typeof WhatsappRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -106,11 +98,10 @@ export interface FileRoutesById {
   '/capacidade': typeof CapacidadeRoute
   '/contratacoes': typeof ContratacoesRoute
   '/escala': typeof EscalaRoute
+  '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
   '/simulador': typeof SimuladorRoute
-  '/webchat': typeof WebchatRoute
-  '/whatsapp': typeof WhatsappRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -120,11 +111,10 @@ export interface FileRouteTypes {
     | '/capacidade'
     | '/contratacoes'
     | '/escala'
+    | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
     | '/simulador'
-    | '/webchat'
-    | '/whatsapp'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -132,11 +122,10 @@ export interface FileRouteTypes {
     | '/capacidade'
     | '/contratacoes'
     | '/escala'
+    | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
     | '/simulador'
-    | '/webchat'
-    | '/whatsapp'
   id:
     | '__root__'
     | '/'
@@ -144,11 +133,10 @@ export interface FileRouteTypes {
     | '/capacidade'
     | '/contratacoes'
     | '/escala'
+    | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
     | '/simulador'
-    | '/webchat'
-    | '/whatsapp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -157,29 +145,14 @@ export interface RootRouteChildren {
   CapacidadeRoute: typeof CapacidadeRoute
   ContratacoesRoute: typeof ContratacoesRoute
   EscalaRoute: typeof EscalaRoute
+  HelpdeskRoute: typeof HelpdeskRoute
   PainelRoute: typeof PainelRoute
   PrevisaoEscalaRoute: typeof PrevisaoEscalaRoute
   SimuladorRoute: typeof SimuladorRoute
-  WebchatRoute: typeof WebchatRoute
-  WhatsappRoute: typeof WhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/whatsapp': {
-      id: '/whatsapp'
-      path: '/whatsapp'
-      fullPath: '/whatsapp'
-      preLoaderRoute: typeof WhatsappRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/webchat': {
-      id: '/webchat'
-      path: '/webchat'
-      fullPath: '/webchat'
-      preLoaderRoute: typeof WebchatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/simulador': {
       id: '/simulador'
       path: '/simulador'
@@ -199,6 +172,13 @@ declare module '@tanstack/react-router' {
       path: '/painel'
       fullPath: '/painel'
       preLoaderRoute: typeof PainelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/helpdesk': {
+      id: '/helpdesk'
+      path: '/helpdesk'
+      fullPath: '/helpdesk'
+      preLoaderRoute: typeof HelpdeskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/escala': {
@@ -245,11 +225,10 @@ const rootRouteChildren: RootRouteChildren = {
   CapacidadeRoute: CapacidadeRoute,
   ContratacoesRoute: ContratacoesRoute,
   EscalaRoute: EscalaRoute,
+  HelpdeskRoute: HelpdeskRoute,
   PainelRoute: PainelRoute,
   PrevisaoEscalaRoute: PrevisaoEscalaRoute,
   SimuladorRoute: SimuladorRoute,
-  WebchatRoute: WebchatRoute,
-  WhatsappRoute: WhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

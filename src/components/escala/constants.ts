@@ -1,4 +1,5 @@
 import type { Day, IntervalStatus } from "@/context/DimensionamentoContext";
+import { generateOperatingTimeBlocks } from "@/lib/operating-hours";
 
 export const EXTRA_TABS = ["Agente dia", "Quantidade de agente dia"] as const;
 export type ExtraTab = (typeof EXTRA_TABS)[number];
@@ -19,18 +20,7 @@ export const SHIFT_PRESETS = [
 ] as const;
 
 export function generateTimeBlocks20(): string[] {
-  const blocks: string[] = [];
-  let h = 7;
-  let m = 0;
-  while (h < 24) {
-    blocks.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    m += 20;
-    if (m >= 60) {
-      h += 1;
-      m -= 60;
-    }
-  }
-  return blocks;
+  return generateOperatingTimeBlocks(20);
 }
 
 export function generateLunchOptions(): string[] {

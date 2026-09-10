@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import process from "node:process";
-import { matchAgentName } from "@/lib/agents";
+import { isAiAgent, isSupportAgent, matchAgentName } from "@/lib/agents";
 import type { TeamAgent } from "@/context/DimensionamentoContext";
 
 /**
@@ -25,6 +25,29 @@ export type SyncCapacityBody = {
   capacity_agents: CapacityAgentPayload[];
   month: string;
 };
+
+const MANUAL_CAPACITY_ROWS = ["Yooga Suporte", "Care IA"] as const;
+
+/**
+ * Freshchat/HubSpot só alimentam humanos durante a migração. As duas linhas
+ * especiais são editadas na UI e devem sobreviver a qualquer sincronização.
+ */
+export function preserveManualCapacityAgents(
+  incoming: CapacityAgentPayload[],
+  persisted: CapacityAgentPayload[],
+): CapacityAgentPayload[] {
+  const humans = incoming.filter((agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name));
+
+  return [
+    ...humans,
+    ...MANUAL_CAPACITY_ROWS.map((name) => {
+      const existing = persisted.find((agent) =>
+        name === "Care IA" ? isAiAgent(agent.name) : isSupportAgent(agent.name),
+      );
+      return { name, mediaTri: existing?.mediaTri ?? 0 };
+    }),
+  ];
+}
 
 type SyncResult =
   | {
@@ -138,7 +161,10 @@ export async function handleSyncCapacity(
   }
 
   const currentTeamAgents = (escalaObj?.team_agents || []) as TeamAgent[];
-  const incomingAgents = body.capacity_agents;
+  const incomingAgents = preserveManualCapacityAgents(
+    body.capacity_agents,
+    (escalaObj?.capacity_agents || []) as CapacityAgentPayload[],
+  );
 
   // 4. Determine agents to keep, add, or remove
   // We should NOT delete existing team agents just because they aren't in the incoming capacity list.
@@ -152,6 +178,7 @@ export async function handleSyncCapacity(
   // Add: Incoming agents that do not match any team agent
   const addedAgentNames: string[] = [];
   const newTeamAgents = incomingAgents
+    .filter((incoming) => !isAiAgent(incoming.name) && !isSupportAgent(incoming.name))
     .filter((incoming) => {
       return !currentTeamAgents.some((teamAgent: TeamAgent) =>
         matchAgentName(incoming.name, teamAgent.name),

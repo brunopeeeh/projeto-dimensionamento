@@ -15,7 +15,7 @@ export type PrefillSourceMap = Partial<Record<keyof PlannerInputs, PrefillFieldS
 export interface PrefillSource {
   teamAgents: TeamAgent[];
   capacityAgents: CapacityAgent[];
-  kpis: Pick<DimensionamentoKpis, "webchatVolume" | "whatsappVolume">;
+  kpis: Pick<DimensionamentoKpis, "helpdeskVolume">;
   scenarios: ScenarioParams;
   currentMonth: string; // ex: "Fevereiro 2026"
 }
@@ -91,7 +91,7 @@ export function derivePlannerDefaults(source: PrefillSource): {
   }
 
   // Volume mensal estimado a partir do grid semanal
-  const weeklyVolume = source.kpis.webchatVolume + source.kpis.whatsappVolume;
+  const weeklyVolume = source.kpis.helpdeskVolume;
   if (weeklyVolume > 0) {
     inputs.currentVolume = Math.round(weeklyVolume * WEEKS_PER_MONTH);
     sources.currentVolume = "derived";

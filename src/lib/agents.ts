@@ -5,6 +5,21 @@ export const normalizeName = (name: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z]/g, "");
 
+// Identifica o agente de capacity que representa a IA (Care AI / "Maya dos
+// Santos (IA)"). A IA é sempre marcada com "(IA)" no nome ou pelos aliases
+// históricos "Care AI"/"Care IA".
+export const isAiAgent = (name: string): boolean => {
+  const n = normalizeName(name);
+  return n === "careai" || n === "careia" || /\(\s*ia\s*\)/i.test(name);
+};
+
+// Identifica o agente de capacity do time de suporte interno (Yooga Suporte /
+// Yooga Tecnologia + supervisores). Todo nome com "yooga" representa a posição
+// agregada que entra no numerador e soma uma posição ao divisor do Capacity.
+export const isSupportAgent = (name: string): boolean => {
+  return normalizeName(name).includes("yooga");
+};
+
 export const matchAgentName = (capName: string, teamName: string) => {
   const capNorm = normalizeName(capName);
   const teamNorm = normalizeName(teamName);

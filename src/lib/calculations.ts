@@ -1,5 +1,10 @@
-import { matchAgentName } from "@/lib/agents";
+import { matchAgentName, isAiAgent, isSupportAgent } from "@/lib/agents";
 import { toBlock20, isTimeInShift, getLunchEndTime } from "@/lib/time";
+import {
+  FIXED_OVERNIGHT_AGENTS,
+  hasFixedOvernightCoverage,
+  isHelpdeskOpen,
+} from "@/lib/operating-hours";
 import {
   DEFAULT_MEDIA_TRI,
   MONTHS_PER_QUARTER,
@@ -7,30 +12,26 @@ import {
   HOURS_PER_SHIFT,
   BLOCKS_10MIN_PER_HOUR,
   DAYS_PER_WEEK,
+  DEFAULT_SIMULTANEOUS_HELPDESK,
+  AI_DAYS_PER_MONTH,
+  AI_HOURS_PER_DAY,
 } from "@/lib/constants";
 import type { Day, TeamAgent, NewAgentHire, CapacityAgent, RowCalculation } from "@/context/types";
 
 export type DayTotals = {
-  wcVolume: number;
-  wcCapacity: number;
-  waVolume: number;
-  waCapacity: number;
-  waDeficit10: number;
+  volume: number;
+  capacity: number;
+  deficit10: number;
   prCapacity: number;
   prDeficit10: number;
 };
 
 export type DimensionamentoKpis = {
-  webchatVolume: number;
-  webchatCapacity: number;
-  whatsappVolume: number;
-  whatsappCapacity: number;
+  helpdeskVolume: number;
+  helpdeskCapacity: number;
   totalDeficit10: number;
-  totalDeficit20: number;
   provaRealDeficit10: number;
-  excedenteTotal: number;
   picoMaximo: { day: string; time: string; deficit: number };
-  horasOciosas: number;
   coberturaProjetada: number;
 };
 
@@ -48,18 +49,11 @@ function emptyDayArrays(): Pick<
   | "capacity"
   | "capacityR"
   | "resultado"
-  | "agentsWhats"
-  | "waVolume"
-  | "waCapacity"
-  | "waCapacityR"
-  | "waResultado"
-  | "waFaltam10"
-  | "waFaltam20"
+  | "faltam10"
   | "prCapacity"
   | "prCapacityR"
   | "prResultado"
   | "prFaltam10"
-  | "prFaltam20"
 > {
   const zeros = () => Array<number>(DAY_COUNT).fill(0);
   return {
@@ -67,18 +61,11 @@ function emptyDayArrays(): Pick<
     capacity: zeros(),
     capacityR: zeros(),
     resultado: zeros(),
-    agentsWhats: zeros(),
-    waVolume: zeros(),
-    waCapacity: zeros(),
-    waCapacityR: zeros(),
-    waResultado: zeros(),
-    waFaltam10: zeros(),
-    waFaltam20: zeros(),
+    faltam10: zeros(),
     prCapacity: zeros(),
     prCapacityR: zeros(),
     prResultado: zeros(),
     prFaltam10: zeros(),
-    prFaltam20: zeros(),
   };
 }
 
@@ -91,7 +78,7 @@ function createEmptyRowCalculation(time: string): RowCalculation {
 
 function deriveResolvidos10(mediaTri: number): number {
   const mediaMes = mediaTri / MONTHS_PER_QUARTER;
-  const resolvidosDia = Math.ceil(mediaMes / WORKING_DAYS_PER_MONTH);
+  const resolvidosDia = mediaMes / WORKING_DAYS_PER_MONTH;
   const resolvidosHora = resolvidosDia / HOURS_PER_SHIFT;
   return resolvidosHora / BLOCKS_10MIN_PER_HOUR;
 }
@@ -103,23 +90,53 @@ function isAgentScheduledOnDay(agent: TeamAgent, day: Day): boolean {
   );
 }
 
+export type CapacityContributions = { ai: number; support: number; supportSeats: number };
+
+/**
+ * Contribuições por bloco usadas no Capacity médio. A Care IA entra no volume
+ * resolvido, mas não no divisor de pessoas. O Yooga Suporte representa uma
+ * posição agregada (supervisores + N2), então entra no volume e soma 1 ao divisor.
+ */
+export function computeCapacityContributions(
+  capacityAgents: CapacityAgent[],
+): CapacityContributions {
+  const ai = capacityAgents.find((ca) => isAiAgent(ca.name));
+  const support = capacityAgents.find((ca) => isSupportAgent(ca.name));
+
+  const aiBlocksPerQuarter =
+    MONTHS_PER_QUARTER * AI_DAYS_PER_MONTH * AI_HOURS_PER_DAY * BLOCKS_10MIN_PER_HOUR;
+  const aiRate = ai ? ai.mediaTri / aiBlocksPerQuarter : 0;
+  const supportRate = support ? deriveResolvidos10(support.mediaTri) : 0;
+
+  return { ai: aiRate, support: supportRate, supportSeats: support ? 1 : 0 };
+}
+
+export function computeAverageCapacity(totalResolved: number, operationalSeats: number): number {
+  const value = totalResolved / Math.max(operationalSeats, 1);
+  return Math.floor((value + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Capacity médio por dia em blocos de 10min:
+ * (volume dos humanos + Yooga Suporte + Care IA) / (humanos + 1 Yooga Suporte).
+ * A Care IA nunca soma uma posição ao divisor.
+ */
 export function computeDynamicTmaFactors(
   days: readonly Day[],
   teamAgents: TeamAgent[],
   capacityAgents: CapacityAgent[],
 ): Record<Day, number> {
-  const supportMatch = capacityAgents.find((ca) => ca.name === "Yooga Suporte");
-  const supportResolvidos10 = deriveResolvidos10(
-    supportMatch ? supportMatch.mediaTri : DEFAULT_MEDIA_TRI,
-  );
-
-  const aiMatch = capacityAgents.find((ca) => ca.name === "Care AI");
-  const aiResolvidos10 = deriveResolvidos10(aiMatch ? aiMatch.mediaTri : DEFAULT_MEDIA_TRI);
-
   const factors = {} as Record<Day, number>;
 
+  // IA e Yooga Suporte podem constar no roster (ex.: adicionados pelo sync),
+  // mas nunca contam como agentes humanos escalados.
+  const humanTeamAgents = teamAgents.filter(
+    (agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name),
+  );
+  const contributions = computeCapacityContributions(capacityAgents);
+
   days.forEach((day) => {
-    const scheduledHumans = teamAgents.filter(
+    const scheduledHumans = humanTeamAgents.filter(
       (agent) => agent.active && isAgentScheduledOnDay(agent, day),
     );
 
@@ -129,9 +146,9 @@ export function computeDynamicTmaFactors(
       return sum + deriveResolvidos10(mediaTri);
     }, 0);
 
-    const totalResolvidos10 = humanSum + supportResolvidos10 + aiResolvidos10;
-    const divisor = scheduledHumans.length;
-    factors[day] = Math.round((totalResolvidos10 / Math.max(divisor + 1, 1)) * 100) / 100;
+    const totalResolved = humanSum + contributions.support + contributions.ai;
+    const divisor = scheduledHumans.length + contributions.supportSeats;
+    factors[day] = computeAverageCapacity(totalResolved, divisor);
   });
 
   return factors;
@@ -142,38 +159,58 @@ function excelRoundUp(val: number): number {
   return val > 0 ? Math.ceil(val) : Math.floor(val);
 }
 
+/**
+ * Chamados que UM agente resolve num bloco de 10min.
+ *
+ * Unidade única do dimensionamento: é ela que multiplica os agentes escalados
+ * pra virar capacidade E que divide o déficit pra virar "agentes que faltam".
+ * Antes eram duas unidades diferentes (capacidade por `factor`, déficit por
+ * `simultaneous`), então contratar o que o painel pedia não zerava o déficit —
+ * subestimava em `simultaneous / factor` (~1,8x com os fatores atuais).
+ *
+ * `factor` vem do histórico de resolvidos (mediaTri), medido com a equipe
+ * operando no padrão de `DEFAULT_SIMULTANEOUS_HELPDESK` simultâneos. Mexer no
+ * knob de simultâneos escala a capacidade na mesma proporção, como manda a
+ * fórmula da doc: capacidade unitária = (10min / TMA) × simultâneos.
+ */
+export function capacityPerAgent(factor: number, simultaneous: number): number {
+  const perAgent = factor * (simultaneous / DEFAULT_SIMULTANEOUS_HELPDESK);
+  // Config degenerada (todo mediaTri zerado): agente nenhum resolve nada e a
+  // divisão explodiria. Cai pra 1 chamado/agente — número alto e visível, em
+  // vez de Infinity na tela ou um zero que esconde o déficit.
+  return perAgent > 0 ? perAgent : 1;
+}
+
 export function computeGridCalculations(params: {
   days: readonly Day[];
   timeBlocks: string[];
-  webchatVolumes: Record<string, Record<Day, number>>;
-  whatsappVolumes: Record<string, Record<Day, number>>;
+  helpdeskVolumes: Record<string, Record<Day, number>>;
   teamAgents: TeamAgent[];
   dynamicTmaFactors: Record<Day, number>;
-  simultaneousWC: number;
-  simultaneousWA: number;
+  simultaneous: number;
   newHires: NewAgentHire[];
 }): GridCalculationResult {
   const {
     days,
     timeBlocks,
-    webchatVolumes,
-    whatsappVolumes,
+    helpdeskVolumes,
     teamAgents,
     dynamicTmaFactors,
-    simultaneousWC,
-    simultaneousWA,
+    simultaneous,
     newHires,
   } = params;
 
-  let totalWcVolume = 0;
-  let totalWcCapacity = 0;
-  let totalWaVolume = 0;
-  let totalWaCapacity = 0;
+  // O fator diário já contém os volumes de Care IA e Yooga Suporte. Na grade,
+  // contam somente humanos com status "trabalhando" na faixa da escala.
+  const humanTeamAgents = teamAgents.filter(
+    (agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name),
+  );
+
+  let totalVolume = 0;
+  let totalCapacity = 0;
   let totalDeficit10 = 0;
-  let totalDeficit20 = 0;
   let totalPrDeficit10 = 0;
-  let totalSurplus = 0;
-  let totalWaDeficitChats = 0;
+  let totalDeficitChats = 0;
 
   let maxDeficit = 0;
   let maxDeficitDay = "Segunda";
@@ -182,11 +219,9 @@ export function computeGridCalculations(params: {
   const computedTotals = {} as Record<Day, DayTotals>;
   days.forEach((day) => {
     computedTotals[day] = {
-      wcVolume: 0,
-      wcCapacity: 0,
-      waVolume: 0,
-      waCapacity: 0,
-      waDeficit10: 0,
+      volume: 0,
+      capacity: 0,
+      deficit10: 0,
       prCapacity: 0,
       prDeficit10: 0,
     };
@@ -196,14 +231,14 @@ export function computeGridCalculations(params: {
     const rowResult = createEmptyRowCalculation(time);
 
     days.forEach((day) => {
-      const factorWC = dynamicTmaFactors[day];
-      const factorWA = factorWC * (simultaneousWA / simultaneousWC);
+      if (!isHelpdeskOpen(day, time)) return;
 
-      const volWC = webchatVolumes[time]?.[day] ?? 0;
-      const volWA = whatsappVolumes[time]?.[day] ?? 0;
+      const perAgent = capacityPerAgent(dynamicTmaFactors[day], simultaneous);
+
+      const vol = helpdeskVolumes[time]?.[day] ?? 0;
       const time20 = toBlock20(time);
 
-      const agentsSch = teamAgents.reduce((count, agent) => {
+      const agentsSch = humanTeamAgents.reduce((count, agent) => {
         if (agent.active && agent.schedules[day]) {
           const status = agent.schedules[day]!.intervals[time20] || "folga";
           if (status === "trabalhando") {
@@ -213,18 +248,15 @@ export function computeGridCalculations(params: {
         return count;
       }, 0);
 
-      const capWcRaw = agentsSch * factorWC;
-      const capWcRounded = Math.ceil(capWcRaw);
-      const wcSurplus = capWcRounded - volWC;
-      const wcAgentsForWhats = wcSurplus > 0 ? Math.floor(wcSurplus / simultaneousWC) : 0;
+      const capRaw = agentsSch * perAgent;
+      const capRounded = Math.ceil(capRaw);
+      const surplus = capRounded - vol;
 
-      const capWaRaw = wcAgentsForWhats * factorWA;
-      const capWaRounded = Math.ceil(capWaRaw);
-      const waSurplus = capWaRounded - volWA;
-
-      const waDeficitChats = Math.max(0, volWA - capWaRounded);
-      const waFaltam10 = excelRoundUp(waSurplus / -simultaneousWA);
-      const waFaltam20 = excelRoundUp(waSurplus / -(simultaneousWA * 2));
+      const fixedOvernightCoverage = hasFixedOvernightCoverage(day, time);
+      const deficitChats = fixedOvernightCoverage ? 0 : Math.max(0, vol - capRounded);
+      const faltam10 = fixedOvernightCoverage
+        ? FIXED_OVERNIGHT_AGENTS - agentsSch
+        : excelRoundUp(surplus / -perAgent);
 
       const activeNewHires = newHires.reduce((count, hire) => {
         if (hire.active) {
@@ -249,54 +281,42 @@ export function computeGridCalculations(params: {
         return count;
       }, 0);
 
-      const prWcAgentsForWhats = wcAgentsForWhats + activeNewHires;
-      const prCapWaRaw = prWcAgentsForWhats * factorWA;
-      const prCapWaRounded = Math.ceil(prCapWaRaw);
-      const prWaSurplus = prCapWaRounded - volWA;
-      const prFaltam10 = excelRoundUp(prWaSurplus / -simultaneousWA);
-      const prFaltam20 = excelRoundUp(prWaSurplus / -(simultaneousWA * 2));
+      const prAgentsSch = agentsSch + activeNewHires;
+      const prCapRaw = prAgentsSch * perAgent;
+      const prCapRounded = Math.ceil(prCapRaw);
+      const prSurplus = prCapRounded - vol;
+      const prFaltam10 = fixedOvernightCoverage
+        ? FIXED_OVERNIGHT_AGENTS - prAgentsSch
+        : excelRoundUp(prSurplus / -perAgent);
 
-      computedTotals[day].wcVolume += volWC;
-      computedTotals[day].wcCapacity += capWcRounded;
-      computedTotals[day].waVolume += volWA;
-      computedTotals[day].waCapacity += capWaRounded;
-      computedTotals[day].waDeficit10 += Math.max(0, waFaltam10);
-      computedTotals[day].prCapacity += prCapWaRounded;
+      computedTotals[day].volume += vol;
+      computedTotals[day].capacity += capRounded;
+      computedTotals[day].deficit10 += Math.max(0, faltam10);
+      computedTotals[day].prCapacity += prCapRounded;
       computedTotals[day].prDeficit10 += Math.max(0, prFaltam10);
 
-      totalWcVolume += volWC;
-      totalWcCapacity += capWcRounded;
-      totalWaVolume += volWA;
-      totalWaCapacity += capWaRounded;
-      totalDeficit10 += Math.max(0, waFaltam10);
-      totalDeficit20 += Math.max(0, waFaltam20);
+      totalVolume += vol;
+      totalCapacity += capRounded;
+      totalDeficit10 += Math.max(0, faltam10);
       totalPrDeficit10 += Math.max(0, prFaltam10);
-      totalSurplus += Math.max(0, wcSurplus) + Math.max(0, waSurplus);
-      totalWaDeficitChats += waDeficitChats;
+      totalDeficitChats += deficitChats;
 
-      if (waFaltam10 > maxDeficit) {
-        maxDeficit = waFaltam10;
+      if (faltam10 > maxDeficit) {
+        maxDeficit = faltam10;
         maxDeficitDay = day;
         maxDeficitTime = time;
       }
 
       const dIdx = days.indexOf(day);
-      rowResult.volume[dIdx] = volWC;
-      rowResult.capacity[dIdx] = capWcRaw;
-      rowResult.capacityR[dIdx] = capWcRounded;
-      rowResult.resultado[dIdx] = wcSurplus;
-      rowResult.agentsWhats[dIdx] = wcAgentsForWhats;
-      rowResult.waVolume[dIdx] = volWA;
-      rowResult.waCapacity[dIdx] = capWaRaw;
-      rowResult.waCapacityR[dIdx] = capWaRounded;
-      rowResult.waResultado[dIdx] = waSurplus;
-      rowResult.waFaltam10[dIdx] = waFaltam10;
-      rowResult.waFaltam20[dIdx] = waFaltam20;
-      rowResult.prCapacity[dIdx] = prCapWaRaw;
-      rowResult.prCapacityR[dIdx] = prCapWaRounded;
-      rowResult.prResultado[dIdx] = prCapWaRounded - volWA;
+      rowResult.volume[dIdx] = vol;
+      rowResult.capacity[dIdx] = capRaw;
+      rowResult.capacityR[dIdx] = capRounded;
+      rowResult.resultado[dIdx] = surplus;
+      rowResult.faltam10[dIdx] = faltam10;
+      rowResult.prCapacity[dIdx] = prCapRaw;
+      rowResult.prCapacityR[dIdx] = prCapRounded;
+      rowResult.prResultado[dIdx] = prSurplus;
       rowResult.prFaltam10[dIdx] = prFaltam10;
-      rowResult.prFaltam20[dIdx] = prFaltam20;
     });
 
     return rowResult;
@@ -306,18 +326,13 @@ export function computeGridCalculations(params: {
     rowCalculations: list,
     totals: computedTotals,
     kpis: {
-      webchatVolume: totalWcVolume,
-      webchatCapacity: totalWcCapacity,
-      whatsappVolume: totalWaVolume,
-      whatsappCapacity: totalWaCapacity,
+      helpdeskVolume: totalVolume,
+      helpdeskCapacity: totalCapacity,
       totalDeficit10,
-      totalDeficit20,
       provaRealDeficit10: totalPrDeficit10,
-      excedenteTotal: totalSurplus,
       picoMaximo: { day: maxDeficitDay, time: maxDeficitTime, deficit: maxDeficit },
-      horasOciosas: totalSurplus / 6, // each surplus is 1 agent idle for 10 min (1/6 hour)
       coberturaProjetada:
-        totalWaVolume > 0 ? ((totalWaVolume - totalWaDeficitChats) / totalWaVolume) * 100 : 100,
+        totalVolume > 0 ? ((totalVolume - totalDeficitChats) / totalVolume) * 100 : 100,
     },
   };
 }

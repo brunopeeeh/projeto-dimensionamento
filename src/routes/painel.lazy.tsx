@@ -29,16 +29,16 @@ function Painel() {
   const comparisonChartData = useMemo(() => {
     const dIdx = DAYS.indexOf(chartDay);
     return rowCalculations
-      .filter((r) => r.time === "00:00" || (r.time >= "07:00" && r.time <= "23:50"))
+      .filter((r) => r.time < "03:00" || (r.time >= "07:00" && r.time <= "23:50"))
       .map((r) => ({
         time: r.time,
-        waResultado: Number((r.waResultado[dIdx] ?? 0).toFixed(2)),
+        resultado: Number((r.resultado[dIdx] ?? 0).toFixed(2)),
         prResultado: Number((r.prResultado[dIdx] ?? 0).toFixed(2)),
       }));
   }, [rowCalculations, chartDay]);
 
   // Greedy estimate of how many agents are needed to zero out the whole week's
-  // WhatsApp deficit — same shift/folga rules as the math solver in Contratações,
+  // Helpdesk deficit — same shift/folga rules as the math solver in Contratações,
   // but cheap enough to recompute on every edit (see estimateAgentsNeeded docs).
   const agentesRecomendados = useMemo(
     () => estimateAgentsNeeded({ deficitTable: buildDeficitTable(rowCalculations) }),
@@ -114,15 +114,15 @@ function Painel() {
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard
-            title={`WhatsApp Original - ${chartDay}`}
+            title={`Helpdesk Original - ${chartDay}`}
             subtitle="Excedente ou déficit operacional antes do simulador."
             dotClass="bg-[#3b82f6]"
             chartDay={chartDay}
             setChartDay={setChartDay}
             data={comparisonChartData}
-            dataKey="waResultado"
+            dataKey="resultado"
             fill="#3b82f6"
-            seriesName="WhatsApp Original"
+            seriesName="Helpdesk Original"
           />
           <ChartCard
             title={`Prova Real (Simulado) - ${chartDay}`}
@@ -157,8 +157,8 @@ function ChartCard({
   dotClass: string;
   chartDay: Day;
   setChartDay: (day: Day) => void;
-  data: { time: string; waResultado: number; prResultado: number }[];
-  dataKey: "waResultado" | "prResultado";
+  data: { time: string; resultado: number; prResultado: number }[];
+  dataKey: "resultado" | "prResultado";
   fill: string;
   seriesName: string;
 }) {

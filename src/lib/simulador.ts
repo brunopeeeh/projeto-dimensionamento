@@ -82,12 +82,12 @@ export function worstDeficitBlocks(
   for (const row of sim) {
     const baseRow = baseByTime.get(row.time);
     DAYS.forEach((day, dayIndex) => {
-      const simDeficit = Math.max(0, row.waFaltam10[dayIndex] ?? 0);
+      const simDeficit = Math.max(0, row.faltam10[dayIndex] ?? 0);
       if (simDeficit <= 0) return;
       blocks.push({
         day,
         time: row.time,
-        base: Math.max(0, baseRow?.waFaltam10[dayIndex] ?? 0),
+        base: Math.max(0, baseRow?.faltam10[dayIndex] ?? 0),
         sim: simDeficit,
       });
     });

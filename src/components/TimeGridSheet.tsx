@@ -4,20 +4,20 @@ import { useDimensionamento, DAYS, Day } from "@/context/DimensionamentoContext"
 import { RotateCcw, Upload, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
+import { parseHubspotLongFormat } from "@/lib/volume-import";
 
 const TimeGridChart = lazy(() =>
   import("./TimeGridChart").then((module) => ({ default: module.TimeGridChart })),
 );
 
-export type GridMode = "webchat" | "whatsapp" | "provaReal";
+export type GridMode = "helpdesk" | "provaReal";
 
 type Props = { mode: GridMode; title: string; subtitle?: string };
 
 type View = "volume" | "capacity" | "capacityR" | "resultado" | "faltam10";
 
 const MODE_LABELS: Record<GridMode, string> = {
-  webchat: "Webchat",
-  whatsapp: "WhatsApp",
+  helpdesk: "Helpdesk",
   provaReal: "Prova Real",
 };
 
@@ -25,15 +25,46 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
   const rowCalculations = useDimensionamento((s) => s.rowCalculations);
   const updateTimeBlockVolume = useDimensionamento((s) => s.updateTimeBlockVolume);
   const resetAll = useDimensionamento((s) => s.resetAll);
-  const updateChannelVolumes = useDimensionamento((s) => s.updateChannelVolumes);
+  const updateHelpdeskVolumes = useDimensionamento((s) => s.updateHelpdeskVolumes);
   const isReadOnly = useDimensionamento((s) => s.isReadOnly);
+  const currentMonth = useDimensionamento((s) => s.currentMonth);
+  const timeBlocks = useDimensionamento((s) => s.timeBlocks);
+  const helpdeskVolumes = useDimensionamento((s) => s.helpdeskVolumes);
+  const teamAgents = useDimensionamento((s) => s.teamAgents);
+  const capacityAgents = useDimensionamento((s) => s.capacityAgents);
+  const tmaFactors = useDimensionamento((s) => s.tmaFactors);
+  const simultaneous = useDimensionamento((s) => s.simultaneous);
+  const newHires = useDimensionamento((s) => s.newHires);
 
   const [view, setView] = useState<View>("capacity");
   const [chartDay, setChartDay] = useState<Day>("Segunda");
   const [isUploading, setIsUploading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const channel: "webchat" | "whatsapp" = mode === "webchat" ? "webchat" : "whatsapp";
-  const isWebchat = mode === "webchat";
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const { downloadDimensionamentoExcel } = await import("@/lib/export-excel");
+      await downloadDimensionamentoExcel({
+        month: currentMonth,
+        timeBlocks,
+        days: DAYS,
+        helpdeskVolumes,
+        teamAgents,
+        capacityAgents,
+        dynamicTmaFactors: tmaFactors,
+        simultaneous,
+        newHires,
+      });
+      toast.success("Planilha Excel (.xlsx) exportada com sucesso!");
+    } catch (err) {
+      console.error("Erro ao exportar Excel:", err);
+      toast.error("Erro ao exportar planilha Excel.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const isProvaReal = mode === "provaReal";
   const channelLabel = MODE_LABELS[mode];
 
@@ -62,6 +93,18 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
         const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
         if (rows.length < 2) {
           throw new Error("O arquivo Excel não contém linhas de dados suficientes.");
+        }
+
+        // Relatório HubSpot (formato longo): contagem + hora + dia em inglês.
+        // Detectado por conteúdo antes da rota de colunas largas (seg/ter/qua...).
+        const hubspotVolumes = parseHubspotLongFormat(rows);
+        if (hubspotVolumes) {
+          const blockCount = Object.keys(hubspotVolumes).length;
+          updateHelpdeskVolumes(hubspotVolumes);
+          toast.success(
+            `Planilha HubSpot processada! ${blockCount} faixas de horários importadas e divididas por 13.`,
+          );
+          return;
         }
 
         // Row 0 has headers
@@ -175,7 +218,7 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
           );
         }
 
-        updateChannelVolumes(channel, newVolumes);
+        updateHelpdeskVolumes(newVolumes);
         toast.success(
           `Planilha processada! ${parsedRowsCount} faixas de horários importadas e divididas por 13.`,
         );
@@ -198,41 +241,8 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
     reader.readAsArrayBuffer(file);
   };
 
-  // Dynamically define views available for this tab
-  const currentViews = useMemo(() => {
-    if (isWebchat) {
-      return [
-        {
-          id: "volume" as View,
-          label: "Volume",
-          tooltip: "Quantidade média de conversas iniciadas neste intervalo de 10 minutos.",
-        },
-        {
-          id: "capacity" as View,
-          label: "Capacity",
-          tooltip: "Quantidade de conversas que a equipe escala ativa consegue absorver.",
-        },
-        {
-          id: "capacityR" as View,
-          label: "Capacity Arredondado",
-          tooltip:
-            "Quantidade de conversas que a equipe escala ativa consegue absorver, arredondado para números inteiros.",
-        },
-        {
-          id: "resultado" as View,
-          label: "Resultado",
-          tooltip:
-            "Diferença entre Capacity Arredondado e Volume (valores positivos indicam folga de atendimento; valores negativos indicam déficit).",
-        },
-        {
-          id: "faltam10" as View,
-          label: "Agentes para o Whatsapp",
-          tooltip:
-            "Analistas excedentes do Webchat que são direcionados para o WhatsApp neste intervalo.",
-        },
-      ];
-    }
-    return [
+  const currentViews = useMemo(
+    () => [
       {
         id: "volume" as View,
         label: "Volume",
@@ -261,44 +271,19 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
         tooltip:
           "Quantidade de analistas necessários para cobrir o déficit de atendimento neste horário.",
       },
-    ];
-  }, [isWebchat]);
+    ],
+    [],
+  );
 
   // Determine arrays for each day for the selected mode
   const gridRows = useMemo(() => {
     return rowCalculations.map((r) => {
       const time = r.time;
-      let volume: number[];
-      let capacity: number[];
-      let capacityR: number[];
-      let resultado: number[];
-      let faltam10: number[];
-      let faltam20: number[];
-
-      if (isWebchat) {
-        volume = r.volume;
-        capacity = r.capacity;
-        capacityR = r.capacityR;
-        resultado = r.resultado;
-        // In Webchat, faltam10 represents "Agentes para o Whatsapp" (wcAgentsForWhats calculated as floor of surplus/3)
-        faltam10 = r.agentsWhats;
-        faltam20 = Array(7).fill(0);
-      } else if (isProvaReal) {
-        volume = r.waVolume;
-        capacity = r.prCapacity;
-        capacityR = r.prCapacityR;
-        resultado = r.prResultado;
-        faltam10 = r.prFaltam10;
-        faltam20 = r.prFaltam20;
-      } else {
-        // WhatsApp sheet
-        volume = r.waVolume;
-        capacity = r.waCapacity;
-        capacityR = r.waCapacityR;
-        resultado = r.waResultado;
-        faltam10 = r.waFaltam10;
-        faltam20 = r.waFaltam20;
-      }
+      const volume = r.volume;
+      const capacity = isProvaReal ? r.prCapacity : r.capacity;
+      const capacityR = isProvaReal ? r.prCapacityR : r.capacityR;
+      const resultado = isProvaReal ? r.prResultado : r.resultado;
+      const faltam10 = isProvaReal ? r.prFaltam10 : r.faltam10;
 
       return {
         time,
@@ -307,12 +292,11 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
         capacityR,
         resultado,
         faltam10,
-        faltam20,
-        waResultado: r.waResultado,
+        heldResultado: r.resultado,
         prResultado: r.prResultado,
       };
     });
-  }, [rowCalculations, isWebchat, isProvaReal]);
+  }, [rowCalculations, isProvaReal]);
 
   const totals = useMemo(() => {
     return DAYS.map((_, d) => ({
@@ -321,7 +305,6 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
       capacityR: gridRows.reduce((s, r) => s + r.capacityR[d], 0),
       resultado: gridRows.reduce((s, r) => s + r.resultado[d], 0),
       faltam10: gridRows.reduce((s, r) => s + r.faltam10[d], 0),
-      faltam20: gridRows.reduce((s, r) => s + r.faltam20[d], 0),
     }));
   }, [gridRows]);
 
@@ -329,14 +312,14 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
     const dIdx = DAYS.indexOf(chartDay);
     return gridRows.map((r) => ({
       time: r.time,
-      waResultado: Number(r.waResultado[dIdx].toFixed(2)),
+      resultado: Number(r.heldResultado[dIdx].toFixed(2)),
       prResultado: Number(r.prResultado[dIdx].toFixed(2)),
     }));
   }, [gridRows, chartDay]);
 
   const handleVolChange = (time: string, dayIdx: number, val: number) => {
     const day = DAYS[dayIdx];
-    updateTimeBlockVolume(time, day, channel, val);
+    updateTimeBlockVolume(time, day, val);
   };
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -431,6 +414,19 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
             >
               <RotateCcw className="h-3 w-3" />
             </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="ml-2 inline-flex items-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Exportar para Excel (.xlsx) com fórmulas vivas"
+            >
+              {isExporting ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+              ) : (
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              )}
+              {isExporting ? "Exportando..." : "Exportar XLSX"}
+            </button>
           </div>
         </div>
 
@@ -474,7 +470,6 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
                         res={r.resultado[d]}
                         f10={r.faltam10[d]}
                         isEditableCapR={false} // Capacity is derived dynamically from the active agents' schedules
-                        isWebchat={isWebchat}
                         isReadOnly={isReadOnly}
                         onVol={(v) => handleVolChange(r.time, d, v)}
                       />
@@ -502,9 +497,7 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
                           ? t.capacityR.toFixed(0)
                           : view === "resultado"
                             ? t.resultado.toFixed(2).replace(".", ",")
-                            : view === "faltam10"
-                              ? t.faltam10.toFixed(0)
-                              : t.faltam20.toFixed(0);
+                            : t.faltam10.toFixed(0);
                   return (
                     <td key={d} className="px-3 py-2 text-right tabular-nums">
                       {label}
@@ -517,8 +510,8 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
         </div>
       </div>
 
-      {/* Dynamic Results Chart Section for WhatsApp and Prova Real */}
-      {!isWebchat && (
+      {/* Dynamic Results Chart Section for Prova Real */}
+      {isProvaReal && (
         <Suspense
           fallback={
             <div
@@ -548,7 +541,6 @@ const ValueCell = React.memo(
     res,
     f10,
     isEditableCapR,
-    isWebchat,
     isReadOnly,
     onVol,
   }: {
@@ -559,7 +551,6 @@ const ValueCell = React.memo(
     res: number;
     f10: number;
     isEditableCapR: boolean;
-    isWebchat: boolean;
     isReadOnly?: boolean;
     onVol: (v: number) => void;
   }) {
@@ -637,25 +628,8 @@ const ValueCell = React.memo(
       );
     }
 
-    // Faltam or Agentes p/ Whats
+    // Faltam agentes (déficit)
     const f = f10;
-
-    if (view === "faltam10" && isWebchat) {
-      // "Agentes para o Whatsapp" - Positive release badge (light green)
-      return (
-        <td className="px-2 py-1 text-right">
-          {f > 0 ? (
-            <span className="inline-flex min-w-[2rem] justify-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-              {f}
-            </span>
-          ) : (
-            <span className="inline-flex min-w-[2rem] justify-center rounded border border-zinc-300 dark:border-zinc-700 bg-muted/20 px-2 py-0.5 text-xs font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
-              0
-            </span>
-          )}
-        </td>
-      );
-    }
 
     return (
       <td className="px-2 py-1 text-right">
@@ -683,8 +657,7 @@ const ValueCell = React.memo(
       prev.capR === next.capR &&
       prev.res === next.res &&
       prev.f10 === next.f10 &&
-      prev.isEditableCapR === next.isEditableCapR &&
-      prev.isWebchat === next.isWebchat
+      prev.isEditableCapR === next.isEditableCapR
     );
   },
 );

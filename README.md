@@ -1,42 +1,66 @@
-# 📊 Dimensionamento Care - Yooga
+# Dimensionamento Care — Yooga
 
-> **Sistema de Planejamento Operacional, Escalas e Forecast de Suporte**
+Sistema interno para planejar a escala de atendimento, comparar capacidade com demanda e simular contratações do time Care da Yooga.
 
----
+## Objetivo
 
-## 📋 O que é o projeto?
+O painel transforma volume de atendimentos e a escala ativa em uma visão por faixa de 10 minutos. Assim, a operação consegue identificar gargalos, ajustar turnos e testar o efeito de novas contratações antes de aplicá-las na escala real.
 
-O **Dimensionamento Care** é uma aplicação web desenvolvida para a **Yooga** para gerenciar o planejamento operacional e otimizar a escala de atendentes do time de suporte ao cliente (Care).
+## Como o dimensionamento funciona
 
-O sistema substitui processos manuais (planilhas de Excel complexas e controles isolados) por uma interface interativa e integrada, projetada para balancear a qualidade do atendimento (SLA), a eficiência de custos com novas contratações e a carga horária de trabalho do time de suporte, operando em regime estendido de 20 horas diárias (das 07:00 às 03:00).
+- A fila de atendimento é única (Helpdesk).
+- Os volumes e a capacidade dos agentes humanos são consolidados entre Freshchat e HubSpot durante a migração, sem deduplicação temporária.
+- A escala calcula capacidade por agente conforme o fator diário de TMA e o limite de atendimentos simultâneos.
+- A "Prova Real" permite simular admissões sem alterar a escala atual.
+- A calculadora anual permanece independente deste fluxo.
 
----
+## Regras operacionais atuais
 
-## 🧠 Metodologia de Dimensionamento
+Estas regras refletem a operação enquanto a migração para o Helpdesk estiver ativa. A consolidação só deve ser desativada após uma decisão operacional, independentemente de uma data prevista:
 
-O suporte é modelado em faixas de **10 minutos** com alocação dinâmica e transbordamento (overflow):
+| Período | Atendimento | Regra de cobertura |
+| --- | --- | --- |
+| Terça a sábado | 07:00–03:00 | De 00:00 a 03:00, exatamente 1 agente na escala |
+| Domingo e segunda | 07:00–01:00 | De 00:00 a 01:00, exatamente 1 agente na escala |
 
-1. **Fila Prioritária (Webchat)**: Toda a força de trabalho ativa é alocada primeiramente para cobrir a demanda de Webchat.
-2. **Excedente (Overflow)**: Agentes ociosos no Webchat (sobra de capacidade) são automaticamente liberados para atender na fila de WhatsApp.
-3. **Cálculo de Déficit**: Caso a capacidade do WhatsApp seja ultrapassada, o sistema aponta o déficit horários e calcula quantos agentes adicionais (contratações) seriam necessários para zerar o gargalo operacional.
+- O turno de referência da madrugada é **18:00–03:00**, realizado pela **Maria Luiza**.
+- O sistema cobra a presença de uma pessoa na escala fixa; não adiciona automaticamente a Maria Luiza à agenda.
+- Para novas contratações, o último turno permitido é **15:00–00:00**. A madrugada não entra como necessidade de contratação.
+- Fora do horário de atendimento, volumes, capacidade e déficit são ignorados no cálculo e na exportação.
 
----
+## Dados preenchidos manualmente
 
-## 🚀 Principais Recursos
+Enquanto a migração estiver em andamento, os valores de **Care IA** e **Yooga Suporte** são preenchidos manualmente na tela de capacidade. As sincronizações não substituem esses dois valores.
 
-- **Painel Operacional (Dashboard)**: Visualização em tempo real de KPIs de atendimento, volumes de chamados e capacidade total.
-- **Planejador de Escala (Team Manager)**: Grade horária dinâmica e interativa para gerenciar turnos, pausas, almoço e folgas de cada agente.
-- **Simulador de Contratações (Prova Real)**: Adiciona e simula a entrada de novos agentes no time e calcula instantaneamente a redução de gargalos na escala.
-- **Configuração de TMA Dinâmico**: Permite parametrizar fatores de Tempo Médio de Atendimento específicos para cada dia da semana.
-- **Sincronização Automatizada**: botão "Sincronizar com Freshchat" no painel `/capacidade` importa agentes e volume trimestral (90 dias) direto do Freshchat para o Supabase.
+## Principais recursos
 
----
+- **Painel operacional:** indicadores, volumes, capacidade e cobertura por faixa horária.
+- **Gerenciador de escala:** cadastro de pessoas, turnos, pausas, almoço e folgas.
+- **Prova Real:** simulação de novas contratações sobre a demanda consolidada.
+- **Capacidade:** médias trimestrais, fatores de TMA por dia e sincronização dos dados disponíveis.
+- **Exportação Excel:** reproduz a grade de volume, capacidade, resultado e agentes necessários com as mesmas regras do painel.
 
-## 🛠️ Arquitetura e Tecnologias
+## Tecnologias
 
-O projeto é construído em cima de uma stack moderna e performática:
+- React, TypeScript e Tailwind CSS
+- TanStack Start, Vinxi e Vite
+- Supabase (PostgreSQL e persistência das escalas)
+- ExcelJS para exportação de planilhas
 
-- **Frontend**: React + TypeScript + Tailwind CSS (Componentes customizados com Radix UI / Shadcn).
-- **Roteamento e SSR**: TanStack Start (construído sobre Vinxi e Vite).
-- **Banco de Dados & Realtime**: Supabase (PostgreSQL para persistência das escalas, parâmetros operacionais e meses).
-- **Integração de Dados**: server function nativa em `src/lib/api/freshchat.server.ts` consome a Freshchat API diretamente e persiste no Supabase.
+## Desenvolvimento
+
+```bash
+npm install
+npm run dev
+```
+
+Validações disponíveis:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Para detalhes de regras e integrações, consulte [DOCUMENTACAO_DIMENSIONAMENTO_HELPDESK.md](./DOCUMENTACAO_DIMENSIONAMENTO_HELPDESK.md).

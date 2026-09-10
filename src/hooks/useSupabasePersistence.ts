@@ -2,8 +2,7 @@ import { useCallback, useEffect, type Dispatch, type SetStateAction } from "reac
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  DEFAULT_SIMULTANEOUS_WC,
-  DEFAULT_SIMULTANEOUS_WA,
+  DEFAULT_SIMULTANEOUS_HELPDESK,
   DEFAULT_SCENARIO_PARAMS,
   DEFAULT_MONTH_NAME,
   DEFAULT_MONTHS,
@@ -24,11 +23,9 @@ const INITIAL_TEAM_AGENTS: TeamAgent[] = [];
 export type MonthPersistenceSnapshot = {
   teamAgents: TeamAgent[];
   capacityAgents: CapacityAgent[];
-  webchatVolumes: Record<string, Record<Day, number>>;
-  whatsappVolumes: Record<string, Record<Day, number>>;
+  helpdeskVolumes: Record<string, Record<Day, number>>;
   tmaFactors: Record<Day, number>;
-  simultaneousWC: number;
-  simultaneousWA: number;
+  simultaneous: number;
   scenarios: ScenarioParams;
   newHires: NewAgentHire[];
 };
@@ -36,11 +33,9 @@ export type MonthPersistenceSnapshot = {
 type MonthPersistenceSetters = {
   setTeamAgents: Dispatch<SetStateAction<TeamAgent[]>>;
   setCapacityAgents: Dispatch<SetStateAction<CapacityAgent[]>>;
-  setWebchatVolumes: Dispatch<SetStateAction<Record<string, Record<Day, number>>>>;
-  setWhatsappVolumes: Dispatch<SetStateAction<Record<string, Record<Day, number>>>>;
+  setHelpdeskVolumes: Dispatch<SetStateAction<Record<string, Record<Day, number>>>>;
   setTmaFactors: Dispatch<SetStateAction<Record<Day, number>>>;
-  setSimultaneousWC: Dispatch<SetStateAction<number>>;
-  setSimultaneousWA: Dispatch<SetStateAction<number>>;
+  setSimultaneous: Dispatch<SetStateAction<number>>;
   setScenarios: Dispatch<SetStateAction<ScenarioParams>>;
   setNewHires: Dispatch<SetStateAction<NewAgentHire[]>>;
   setAvailableMonths: Dispatch<SetStateAction<string[]>>;
@@ -50,8 +45,7 @@ type MonthPersistenceSetters = {
 };
 
 type SeedData = {
-  webchatVolumes: Record<string, Record<Day, number>>;
-  whatsappVolumes: Record<string, Record<Day, number>>;
+  helpdeskVolumes: Record<string, Record<Day, number>>;
   capacityAgents: CapacityAgent[];
 };
 
@@ -77,16 +71,14 @@ async function seedDefaultMonth(client: SupabaseClient, seed: SeedData) {
     client.from("volumes_chamados").insert([
       {
         mes_id: mesId,
-        webchat_volumes: seed.webchatVolumes,
-        whatsapp_volumes: seed.whatsappVolumes,
+        helpdesk_volumes: seed.helpdeskVolumes,
       },
     ]),
     client.from("parametros_operacionais").insert([
       {
         mes_id: mesId,
         tma_factors: DEFAULT_TMA_FACTORS,
-        simultaneous_wc: DEFAULT_SIMULTANEOUS_WC,
-        simultaneous_wa: DEFAULT_SIMULTANEOUS_WA,
+        simultaneous_helpdesk: DEFAULT_SIMULTANEOUS_HELPDESK,
         scenarios: DEFAULT_SCENARIO_PARAMS,
         new_hires: DEFAULT_NEW_HIRES,
       },
@@ -113,8 +105,7 @@ async function upsertMonthData(
     client.from("volumes_chamados").upsert(
       {
         mes_id: mesId,
-        webchat_volumes: snapshot.webchatVolumes,
-        whatsapp_volumes: snapshot.whatsappVolumes,
+        helpdesk_volumes: snapshot.helpdeskVolumes,
       },
       { onConflict: "mes_id" },
     ),
@@ -122,8 +113,7 @@ async function upsertMonthData(
       {
         mes_id: mesId,
         tma_factors: snapshot.tmaFactors,
-        simultaneous_wc: snapshot.simultaneousWC,
-        simultaneous_wa: snapshot.simultaneousWA,
+        simultaneous_helpdesk: snapshot.simultaneous,
         scenarios: snapshot.scenarios,
         new_hires: snapshot.newHires,
       },
@@ -165,13 +155,11 @@ export function useSupabasePersistence(
           setters.setCapacityAgents(escalaRes.data.capacity_agents);
         }
         if (volumesRes.data) {
-          setters.setWebchatVolumes(volumesRes.data.webchat_volumes);
-          setters.setWhatsappVolumes(volumesRes.data.whatsapp_volumes);
+          setters.setHelpdeskVolumes(volumesRes.data.helpdesk_volumes ?? seed.helpdeskVolumes);
         }
         if (paramsRes.data) {
           setters.setTmaFactors(paramsRes.data.tma_factors);
-          setters.setSimultaneousWC(paramsRes.data.simultaneous_wc);
-          setters.setSimultaneousWA(paramsRes.data.simultaneous_wa);
+          setters.setSimultaneous(paramsRes.data.simultaneous_helpdesk);
           setters.setScenarios(paramsRes.data.scenarios);
           setters.setNewHires(paramsRes.data.new_hires);
         }

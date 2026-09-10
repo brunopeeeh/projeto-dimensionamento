@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { Day, IntervalStatus, TeamAgent, NewAgentHire, AgentSchedule } from "./types";
 import { isTimeInShift, getLunchEndTime } from "@/lib/time";
+import { generateOperatingTimeBlocks } from "@/lib/operating-hours";
 
 export function useScheduleActions(
   setTeamAgents: React.Dispatch<React.SetStateAction<TeamAgent[]>>,
@@ -22,17 +23,7 @@ export function useScheduleActions(
             if (!schedules[day]) {
               const intervals = {} as Record<string, IntervalStatus>;
 
-              let h = 7,
-                m = 0;
-              const blocks: string[] = [];
-              while (h < 24) {
-                blocks.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-                m += 20;
-                if (m >= 60) {
-                  h += 1;
-                  m -= 60;
-                }
-              }
+              const blocks = generateOperatingTimeBlocks(20);
 
               blocks.forEach((block) => {
                 const isLunch =

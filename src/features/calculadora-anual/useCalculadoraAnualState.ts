@@ -58,7 +58,7 @@ export function useCalculadoraAnualState() {
     const { inputs: derived, sources: derivedSources } = derivePlannerDefaults({
       teamAgents,
       capacityAgents,
-      kpis: { webchatVolume: kpis.webchatVolume, whatsappVolume: kpis.whatsappVolume },
+      kpis: { helpdeskVolume: kpis.helpdeskVolume },
       scenarios,
       currentMonth,
     });

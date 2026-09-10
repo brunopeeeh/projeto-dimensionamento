@@ -1,5 +1,11 @@
 import process from "node:process";
-import { matchAgentName, mergeAgentVolumes, type AgentVolume } from "@/lib/agents";
+import {
+  isAiAgent,
+  isSupportAgent,
+  matchAgentName,
+  mergeAgentVolumes,
+  type AgentVolume,
+} from "@/lib/agents";
 import { handleSyncCapacity } from "./sync-capacity.server";
 import { getHubspotVolumes90Days } from "./hubspot.server";
 
@@ -19,12 +25,11 @@ const RETENTION_GROUP_ID = "3ea40078-55f2-4176-85ee-face7f3d7498";
 const WEBCHAT_GROUP_ID = "6b748002-634a-4ba7-b191-844d123643ed";
 const ONBOARDING_GROUP_ID = "64f40e5f-b18a-4d1d-8c23-1fcb9575c5a7";
 
-// Static synthetic rows appended to every sync. Kept here to preserve
-// backwards-compat with charts that depend on these two names. Both can be
-// edited inline on the /capacidade page once the sync finishes.
-const STATIC_CAPACITY_AGENTS = [
-  { name: "Yooga Suporte", mediaTri: 3634 },
-  { name: "Care AI", mediaTri: 14696 },
+// Linhas manuais: as fontes não consolidam esses volumes com segurança durante
+// a migração. Toda sincronização as zera para preenchimento posterior na UI.
+const MANUAL_CAPACITY_AGENTS = [
+  { name: "Yooga Suporte", mediaTri: 0 },
+  { name: "Care IA", mediaTri: 0 },
 ];
 
 // Agent overrides applied after Freshchat sync. Edit here to adjust behavior
@@ -32,14 +37,9 @@ const STATIC_CAPACITY_AGENTS = [
 //
 //   EXCLUDE_NAMES — agentes reais do Freshchat que NÃO devem aparecer
 //                    na tabela de Capacity.
-//   RENAME_MAP     — agente real do Freshchat cujo nome deve ser exibido
-//                    como outro valor (e.g., consolidar com linha estática).
+//   RENAME_MAP     — agente real cujo nome precisa ser normalizado antes de
+//                    identificar contas especiais e consolidar humanos.
 //
-// Regras de precedência quando há colisão com STATIC_CAPACITY_AGENTS:
-//   - Real cujo nome JÁ É igual a um estático (sem renomeação) → estático
-//     vence, real é descartado.
-//   - Real que foi RENOMEADO para um nome estático → real vence e SUBSTITUI
-//     o estático (a renomeação indica intenção explícita de usar o real).
 // "Maya da Yooga" é a mesma IA do Freshchat ("Maya Santos"), cadastrada com
 // outro nome no HubSpot (yara.ai@) — sem isso o volume do bot entraria como
 // agente humano.
@@ -257,16 +257,38 @@ export async function getAgentVolumes90Days(agentIds: string[]): Promise<Record<
  *  2b. Fetch the 90-day HubSpot Helpdesk ticket totals and sum them per agent
  *  3. Filter: drop EXCLUDE_NAMES, drop agents not on the schedule
  *  4. Apply RENAME_MAP (Care IA substitution from Yooga Tecnologia)
- *  5. Dedupe against STATIC_CAPACITY_AGENTS (per-name precedence rule)
- *  6. Delegate to handleSyncCapacity() to upsert into escala_equipe
+ *  5. Remove IA/Yooga aliases from the automatic result
+ *  6. Append the two manual capacity rows with zero values
+ *  7. Delegate to handleSyncCapacity() to upsert into escala_equipe
  */
 export type FreshchatSyncRequest = {
   month: string;
   /** Nomes da escala ativa (enviado pelo cliente). Se vazio, todos os
-   *  agentes reais do Freshchat são descartados — apenas as estáticas
+   *  agentes humanos são descartados — apenas as linhas manuais zeradas
    *  permanecem (regra estrita). */
   teamAgentNames: string[];
 };
+
+/**
+ * Consolida somente agentes humanos das duas plataformas. IA e contas Yooga
+ * são sempre substituídas pelas linhas manuais zeradas, independentemente do
+ * alias recebido durante a migração.
+ */
+export function buildCapacityAgents(
+  freshchatAgents: AgentVolume[],
+  hubspotAgents: AgentVolume[],
+  teamAgentNames: string[],
+): Array<{ name: string; mediaTri: number }> {
+  const humanAgents = mergeAgentVolumes(freshchatAgents, hubspotAgents)
+    .filter(
+      (agent) => !EXCLUDE_NAMES.includes(agent.name) && !EXCLUDE_NAMES.includes(lc(agent.name)),
+    )
+    .filter((agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name))
+    .filter((agent) => teamAgentNames.some((teamName) => matchAgentName(agent.name, teamName)))
+    .map(({ name, mediaTri }) => ({ name, mediaTri }));
+
+  return [...humanAgents, ...MANUAL_CAPACITY_AGENTS];
+}
 
 export async function runFreshchatSync(req: FreshchatSyncRequest): Promise<FreshchatSyncResult> {
   const monthName = req?.month;
@@ -335,28 +357,9 @@ export async function runFreshchatSync(req: FreshchatSyncRequest): Promise<Fresh
     };
   }
 
-  const realAgentsProcessed = mergeAgentVolumes(freshchatAgents, hubspotAgents)
-    .filter((a) => !EXCLUDE_NAMES.includes(a.name) && !EXCLUDE_NAMES.includes(lc(a.name)))
-    // Regra estrita: se nenhum nome da escala foi enviado, TODOS os reais
-    // são descartados — apenas as estáticas (Yooga Suporte + Care IA) sobrevivem.
-    .filter((a) => teamAgentNames.some((t) => matchAgentName(a.name, t)));
-
-  const staticNamesLc = new Set(STATIC_CAPACITY_AGENTS.map((s) => lc(s.name)));
-  const realRenamedNamesLc = new Set(
-    realAgentsProcessed.filter((a) => a.wasRenamed).map((a) => lc(a.name)),
-  );
-
-  // Real "natural" casando com estático → descartado (estático vence).
-  // Real RENOMEADO para nome de estático → mantido, substitui o estático.
-  const realKept = realAgentsProcessed
-    .filter((a) => !(staticNamesLc.has(lc(a.name)) && !a.wasRenamed))
-    .map(({ name, mediaTri }) => ({ name, mediaTri }));
-
-  // Estáticas que NÃO foram sobrescritas por uma renomeação real permanecem.
-  const capacity_agents = [
-    ...realKept,
-    ...STATIC_CAPACITY_AGENTS.filter((s) => !realRenamedNamesLc.has(lc(s.name))),
-  ];
+  // Regra estrita: se nenhum nome da escala foi enviado, todos os humanos são
+  // descartados e somente as linhas manuais zeradas permanecem.
+  const capacity_agents = buildCapacityAgents(freshchatAgents, hubspotAgents, teamAgentNames);
 
   const result = await handleSyncCapacity({ capacity_agents, month: monthName });
 

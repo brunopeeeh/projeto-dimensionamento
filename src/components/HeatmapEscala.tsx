@@ -54,10 +54,10 @@ export function HeatmapEscala() {
       if (!grid[hour]) return;
 
       DAYS.forEach((day, dIdx) => {
-        const vol = r.waVolume[dIdx] ?? 0;
-        const cap = r.waCapacityR[dIdx] ?? 0;
-        const def = r.waFaltam10[dIdx] ?? 0;
-        const sur = r.waResultado[dIdx] ?? 0;
+        const vol = r.volume[dIdx] ?? 0;
+        const cap = r.capacityR[dIdx] ?? 0;
+        const def = r.faltam10[dIdx] ?? 0;
+        const sur = r.resultado[dIdx] ?? 0;
 
         grid[hour][day].volume += vol;
         grid[hour][day].capacity += cap;
@@ -144,7 +144,7 @@ export function HeatmapEscala() {
               Mapa de Calor Operacional (Heatmap)
             </h2>
             <p className="text-xs text-muted-foreground">
-              Déficits de agentes calculados na fila de WhatsApp por dia e faixa de horário.
+              Déficits de agentes calculados na fila do Helpdesk por dia e faixa de horário.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs">
@@ -287,7 +287,7 @@ export function HeatmapEscala() {
                 <strong className="text-destructive font-bold">
                   -{peakGargalo.maxDeficit} agentes
                 </strong>{" "}
-                de déficit na fila do WhatsApp.
+                de déficit na fila do Helpdesk.
               </p>
             </div>
           </div>

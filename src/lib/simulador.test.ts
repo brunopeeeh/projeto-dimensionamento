@@ -83,9 +83,9 @@ describe("applyVolumeSpike", () => {
 });
 
 describe("worstDeficitBlocks", () => {
-  // waFaltam10 é indexado por dia: [Segunda, Terça, Quarta, ...].
+  // faltam10 é indexado por dia: [Segunda, Terça, Quarta, ...].
   const row = (time: string, faltam: number[]): RowCalculation =>
-    ({ time, waFaltam10: faltam }) as RowCalculation;
+    ({ time, faltam10: faltam }) as RowCalculation;
 
   it("ordena do pior para o menos pior e ignora blocos sem déficit", () => {
     const base = [row("10:00", [1, 0]), row("10:10", [0, 0])];
@@ -199,30 +199,28 @@ describe("integração com computeGridCalculations", () => {
     return computeGridCalculations({
       days,
       timeBlocks,
-      webchatVolumes: { "10:00": { Segunda: 2 } as Record<Day, number> },
-      whatsappVolumes: vols,
+      helpdeskVolumes: vols,
       teamAgents: agents,
       dynamicTmaFactors: { Segunda: 6 } as Record<Day, number>,
-      simultaneousWC: 3,
-      simultaneousWA: 4,
+      simultaneous: 3,
       newHires: [],
     });
   }
 
   const team = [agent("a1"), agent("a2")];
-  const waVolumes = { "10:00": { Segunda: 20 } as Record<Day, number> };
+  const helpdeskVolumes = { "10:00": { Segunda: 20 } as Record<Day, number> };
 
   it("pico de chamados aumenta o déficit", () => {
-    const base = run(waVolumes, team);
-    const spiked = run(applyVolumeSpike(waVolumes, ["Segunda"], 30), team);
+    const base = run(helpdeskVolumes, team);
+    const spiked = run(applyVolumeSpike(helpdeskVolumes, ["Segunda"], 30), team);
 
     expect(spiked.kpis.totalDeficit10).toBeGreaterThan(base.kpis.totalDeficit10);
     expect(spiked.kpis.coberturaProjetada).toBeLessThan(base.kpis.coberturaProjetada);
   });
 
   it("ausência de analista aumenta o déficit", () => {
-    const base = run(waVolumes, team);
-    const short = run(waVolumes, applyAbsence(team, new Set(["a1"]), []));
+    const base = run(helpdeskVolumes, team);
+    const short = run(helpdeskVolumes, applyAbsence(team, new Set(["a1"]), []));
 
     expect(short.kpis.totalDeficit10).toBeGreaterThan(base.kpis.totalDeficit10);
   });

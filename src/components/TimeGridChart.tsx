@@ -14,7 +14,7 @@ import { DaySelector } from "@/components/DaySelector";
 
 type ChartPoint = {
   time: string;
-  waResultado: number;
+  resultado: number;
   prResultado: number;
 };
 
@@ -33,7 +33,7 @@ export function TimeGridChart({ chartData, chartDay, isProvaReal, onChartDayChan
           <h3 className="text-base font-semibold text-foreground">
             {isProvaReal
               ? `Resultado Prova Real - ${chartDay}`
-              : `Resultado WhatsApp - ${chartDay}`}
+              : `Resultado Helpdesk - ${chartDay}`}
           </h3>
           <p className="text-xs text-muted-foreground">
             Excedente ou déficit operacional medido em equivalência de analistas (Agentes).
@@ -117,8 +117,8 @@ export function TimeGridChart({ chartData, chartDay, isProvaReal, onChartDayChan
               />
             ) : (
               <Bar
-                dataKey="waResultado"
-                name="Resultado WhatsApp"
+                dataKey="resultado"
+                name="Resultado Helpdesk"
                 fill="#3b82f6"
                 radius={[3, 3, 0, 0]}
               />

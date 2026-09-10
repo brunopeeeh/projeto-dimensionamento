@@ -2,17 +2,30 @@ import { useMemo, useState } from "react";
 import { fmtNum } from "@/lib/utils";
 import { RotateCcw, TrendingUp, Users, Headphones, Bot, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { matchAgentName } from "@/lib/agents";
+import { matchAgentName, isAiAgent, isSupportAgent } from "@/lib/agents";
 import { useDimensionamento, Day, TeamAgent } from "@/context/DimensionamentoContext";
 import { DaySelector } from "@/components/DaySelector";
 import { Tooltip } from "@/components/ui/tooltip";
+import { AI_DAYS_PER_MONTH, AI_HOURS_PER_DAY } from "@/lib/constants";
+import { computeAverageCapacity } from "@/lib/calculations";
 
 const SHIFT_HOURS = 8;
 
 function deriveRow(mediaTri: number) {
   const mediaMes = mediaTri / 3;
-  const resolvidosDia = Math.ceil(mediaMes / 20);
+  const resolvidosDia = mediaMes / 20;
   const resolvidosHora = resolvidosDia / SHIFT_HOURS;
+  const resolvidos20 = resolvidosHora / 3;
+  const resolvidos10 = resolvidosHora / 6;
+  return { mediaMes, resolvidosDia, resolvidosHora, resolvidos20, resolvidos10 };
+}
+
+// A IA atende 24/7 — a jornada é o calendário completo (30 dias x 24h), não a
+// jornada humana de 8h x 20 dias úteis.
+function deriveAiRow(mediaTri: number) {
+  const mediaMes = mediaTri / 3;
+  const resolvidosDia = mediaMes / AI_DAYS_PER_MONTH;
+  const resolvidosHora = resolvidosDia / AI_HOURS_PER_DAY;
   const resolvidos20 = resolvidosHora / 3;
   const resolvidos10 = resolvidosHora / 6;
   return { mediaMes, resolvidosDia, resolvidosHora, resolvidos20, resolvidos10 };
@@ -69,23 +82,20 @@ export function AgentCapacity() {
     }
   };
 
-  const rows = capacityAgents.map((a) => ({ ...a, ...deriveRow(a.mediaTri) }));
+  const supportRow = useMemo(() => {
+    const row = capacityAgents.find((a) => isSupportAgent(a.name));
+    return row ? { ...row, ...deriveRow(row.mediaTri) } : undefined;
+  }, [capacityAgents]);
 
-  const supportRow = rows.find((r) => r.name === "Yooga Suporte");
-  const aiRow = rows.find((r) => r.name === "Care AI");
+  const aiRow = useMemo(() => {
+    const row = capacityAgents.find((a) => isAiAgent(a.name));
+    return row ? { ...row, ...deriveAiRow(row.mediaTri) } : undefined;
+  }, [capacityAgents]);
 
   // Dynamically map active team agents to capacity humanRows, defaulting mediaTri to 750
   const humanRows = useMemo(() => {
     return teamAgents
-      .filter((agent) => {
-        if (!agent.active) return false;
-        const nameNorm = agent.name
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim();
-        return nameNorm !== "yooga suporte" && nameNorm !== "care ai" && nameNorm !== "care ia";
-      })
+      .filter((agent) => agent.active && !isAiAgent(agent.name) && !isSupportAgent(agent.name))
       .map((agent) => {
         const capMatch = capacityAgents.find((ca) => matchAgentName(ca.name, agent.name));
         const mediaTri = capMatch ? capMatch.mediaTri : 750;
@@ -110,15 +120,9 @@ export function AgentCapacity() {
 
   // Total active human agents in the entire team roster (constant across days)
   const totalTeamAgentsCount = useMemo(() => {
-    return teamAgents.filter((agent) => {
-      if (!agent.active) return false;
-      const nameNorm = agent.name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim();
-      return nameNorm !== "yooga suporte" && nameNorm !== "care ai" && nameNorm !== "care ia";
-    }).length;
+    return teamAgents.filter(
+      (agent) => agent.active && !isAiAgent(agent.name) && !isSupportAgent(agent.name),
+    ).length;
   }, [teamAgents]);
 
   // Divisor dynamically switches between total team count (for Visão Geral) and daily count (for specific days)
@@ -129,53 +133,42 @@ export function AgentCapacity() {
     return humanAgentsFiltered.length;
   }, [selectedDay, totalTeamAgentsCount, humanAgentsFiltered]);
 
+  const operationalDivisor = currentDivisor + (supportRow ? 1 : 0);
+
   const totalResolvidosHora = useMemo(() => {
     const list = humanAgentsFiltered;
-    const humanSum = list.reduce((s, r) => s + r.resolvidosHora, 0);
-    const supportVal = supportRow ? Math.ceil(supportRow.mediaTri / 3 / 20) / SHIFT_HOURS : 0;
-    const aiVal = aiRow ? Math.ceil(aiRow.mediaTri / 3 / 20) / SHIFT_HOURS : 0;
-    return humanSum + supportVal + aiVal;
-  }, [humanAgentsFiltered, supportRow, aiRow]);
+    return list.reduce((s, r) => s + r.resolvidosHora, 0);
+  }, [humanAgentsFiltered]);
 
+  // Yooga Suporte representa uma posição agregada; Care IA contribui com
+  // volume resolvido, mas nunca aumenta o divisor de posições.
   const currentCapacity = useMemo(() => {
-    const divisor = currentDivisor + 1; // total agents + 1 (Yooga Tecnologia/Suporte)
-    return totalResolvidosHora / Math.max(divisor, 1);
-  }, [totalResolvidosHora, currentDivisor]);
-
-  const currentCapacityTag = useMemo(() => {
-    const divisor = currentDivisor + 2; // total agents + Yooga Tecnologia (1) + Care AI (1)
-    return totalResolvidosHora / Math.max(divisor, 1);
-  }, [totalResolvidosHora, currentDivisor]);
+    const support = supportRow?.resolvidosHora ?? 0;
+    const ai = aiRow?.resolvidosHora ?? 0;
+    return computeAverageCapacity(totalResolvidosHora + support + ai, operationalDivisor);
+  }, [totalResolvidosHora, operationalDivisor, supportRow, aiRow]);
 
   const totalResolvidos20 = useMemo(() => {
     const list = humanAgentsFiltered;
-    const humanSum = list.reduce((s, r) => s + r.resolvidos20, 0);
-    const supportVal = supportRow ? Math.ceil(supportRow.mediaTri / 3 / 20) / SHIFT_HOURS / 3 : 0;
-    const aiVal = aiRow ? Math.ceil(aiRow.mediaTri / 3 / 20) / SHIFT_HOURS / 3 : 0;
-    return humanSum + supportVal + aiVal;
-  }, [humanAgentsFiltered, supportRow, aiRow]);
+    return list.reduce((s, r) => s + r.resolvidos20, 0);
+  }, [humanAgentsFiltered]);
 
   const currentCapacity20min = useMemo(() => {
-    const divisor = currentDivisor + 1; // total agents + 1 (Yooga Tecnologia/Suporte)
-    return totalResolvidos20 / Math.max(divisor, 1);
-  }, [totalResolvidos20, currentDivisor]);
+    const support = supportRow?.resolvidos20 ?? 0;
+    const ai = aiRow?.resolvidos20 ?? 0;
+    return computeAverageCapacity(totalResolvidos20 + support + ai, operationalDivisor);
+  }, [totalResolvidos20, operationalDivisor, supportRow, aiRow]);
 
   const totalResolvidos10 = useMemo(() => {
     const list = humanAgentsFiltered;
-    const humanSum = list.reduce((s, r) => s + r.resolvidos10, 0);
-    const supportVal = supportRow ? Math.ceil(supportRow.mediaTri / 3 / 20) / SHIFT_HOURS / 6 : 0;
-    const aiVal = aiRow ? Math.ceil(aiRow.mediaTri / 3 / 20) / SHIFT_HOURS / 6 : 0;
-    return humanSum + supportVal + aiVal;
-  }, [humanAgentsFiltered, supportRow, aiRow]);
+    return list.reduce((s, r) => s + r.resolvidos10, 0);
+  }, [humanAgentsFiltered]);
 
   const currentCapacityWebchat = useMemo(() => {
-    const divisor = currentDivisor + 1; // total agents + 1 (Yooga Tecnologia/Suporte)
-    return totalResolvidos10 / Math.max(divisor, 1);
-  }, [totalResolvidos10, currentDivisor]);
-
-  const currentCapacityWhats = useMemo(() => {
-    return (currentCapacityWebchat * 4) / 3;
-  }, [currentCapacityWebchat]);
+    const support = supportRow?.resolvidos10 ?? 0;
+    const ai = aiRow?.resolvidos10 ?? 0;
+    return computeAverageCapacity(totalResolvidos10 + support + ai, operationalDivisor);
+  }, [totalResolvidos10, operationalDivisor, supportRow, aiRow]);
 
   return (
     <div className="space-y-6">
@@ -205,7 +198,7 @@ export function AgentCapacity() {
           <div>
             <span className="text-xs text-muted-foreground font-medium">Yooga Suporte</span>
             <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground">
-              {supportRow ? Math.ceil(supportRow.mediaTri / 3 / 20) : 61}
+              {supportRow ? fmtNum(supportRow.mediaTri / 3 / 20, 4) : 61}
             </div>
             <span className="text-[10px] text-muted-foreground font-medium lowercase">
               resolvidos/dia
@@ -221,10 +214,10 @@ export function AgentCapacity() {
           <div>
             <span className="text-xs text-muted-foreground font-medium">Care AI</span>
             <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground">
-              {aiRow ? Math.ceil(aiRow.mediaTri / 3 / 20) : 245}
+              {aiRow ? fmtNum(aiRow.resolvidosDia, 4) : 245}
             </div>
             <span className="text-[10px] text-muted-foreground font-medium lowercase">
-              resolvidos/dia
+              resolvidos/dia (24/7)
             </span>
           </div>
         </div>
@@ -237,7 +230,7 @@ export function AgentCapacity() {
           Métricas de Capacidade
         </h3>
         <div
-          className={`grid gap-3 ${selectedDay === "Todos" ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2"}`}
+          className={`grid gap-3 ${selectedDay === "Todos" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1"}`}
         >
           {selectedDay === "Todos" && (
             <>
@@ -251,21 +244,21 @@ export function AgentCapacity() {
                   {fmtNum(currentCapacity, 2)}
                 </div>
               </div>
-              {/* Capsule 2: Capacity/Tag */}
+              {/* Capsule 2: contribuição da IA */}
               <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
                 <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
-                  Capacity/Tag{" "}
-                  <Tooltip content="Capacidade média do analista dividida considerando a equipe total mais o Suporte Yooga e a IA." />
+                  Care IA/10min{" "}
+                  <Tooltip content="Volume resolvido pela Care IA por bloco de 10 minutos. Entra no cálculo do Capacity, mas a IA não entra no divisor de agentes." />
                 </span>
                 <div className="text-xl font-bold text-foreground mt-1 font-mono tracking-tight">
-                  {fmtNum(currentCapacityTag, 2)}
+                  {fmtNum(aiRow?.resolvidos10 ?? 0, 3)}
                 </div>
               </div>
               {/* Capsule 3: Capacity/20min */}
               <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
                 <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
                   Capacity/20min{" "}
-                  <Tooltip content="Capacidade média calculada em blocos de 20 minutos (usada no WhatsApp)." />
+                  <Tooltip content="Capacidade média calculada em blocos de 20 minutos." />
                 </span>
                 <div className="text-xl font-bold text-foreground mt-1 font-mono tracking-tight">
                   {fmtNum(currentCapacity20min, 2)}
@@ -273,24 +266,14 @@ export function AgentCapacity() {
               </div>
             </>
           )}
-          {/* Capsule 4: Capacity/Webchat */}
+          {/* Capsule 4: capacity composto da fila única */}
           <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
-              Capacity/Webchat{" "}
-              <Tooltip content="Capacidade média resolvida em blocos de 10 minutos para Webchat." />
+              Capacity Helpdesk/10min{" "}
+              <Tooltip content="(Volume dos humanos + Yooga Suporte + Care IA) dividido pelos humanos + 1 posição de Yooga Suporte. A Care IA não entra como agente." />
             </span>
             <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono tracking-tight">
               {fmtNum(currentCapacityWebchat, 2)}
-            </div>
-          </div>
-          {/* Capsule 5: Capacity/Whats */}
-          <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
-            <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
-              Capacity/Whats{" "}
-              <Tooltip content="Capacidade média resolvida em blocos de 10 minutos para WhatsApp." />
-            </span>
-            <div className="text-xl font-bold text-sky-600 dark:text-sky-400 mt-1 font-mono tracking-tight">
-              {fmtNum(currentCapacityWhats, 2)}
             </div>
           </div>
         </div>
@@ -363,7 +346,7 @@ export function AgentCapacity() {
                     />
                   </td>
                   <Td>{fmtNum(r.mediaMes, 1)}</Td>
-                  <Td bold>{r.resolvidosDia}</Td>
+                  <Td bold>{fmtNum(r.resolvidosDia, 4)}</Td>
                   <Td>{fmtNum(r.resolvidosHora, 3)}</Td>
                   <Td>{fmtNum(r.resolvidos20, 3)}</Td>
                   <Td>{fmtNum(r.resolvidos10, 3)}</Td>
@@ -395,7 +378,7 @@ export function AgentCapacity() {
                     />
                   </td>
                   <Td>{fmtNum(supportRow.mediaMes, 1)}</Td>
-                  <Td bold>{supportRow.resolvidosDia}</Td>
+                  <Td bold>{fmtNum(supportRow.resolvidosDia, 4)}</Td>
                   <Td>{fmtNum(supportRow.resolvidosHora, 3)}</Td>
                   <Td>{fmtNum(supportRow.resolvidos20, 3)}</Td>
                   <Td>{fmtNum(supportRow.resolvidos10, 3)}</Td>
@@ -418,7 +401,7 @@ export function AgentCapacity() {
                     />
                   </td>
                   <Td>{fmtNum(aiRow.mediaMes, 1)}</Td>
-                  <Td bold>{aiRow.resolvidosDia}</Td>
+                  <Td bold>{fmtNum(aiRow.resolvidosDia, 4)}</Td>
                   <Td>{fmtNum(aiRow.resolvidosHora, 3)}</Td>
                   <Td>{fmtNum(aiRow.resolvidos20, 3)}</Td>
                   <Td>{fmtNum(aiRow.resolvidos10, 3)}</Td>

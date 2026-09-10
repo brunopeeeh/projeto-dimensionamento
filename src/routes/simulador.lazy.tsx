@@ -33,8 +33,6 @@ export const Route = createLazyFileRoute("/simulador")({
   component: Simulador,
 });
 
-type SpikeChannel = "webchat" | "whatsapp" | "ambos";
-
 /**
  * Tudo que define um cenário. Estado único de propósito: é exatamente isto que
  * é salvo, recarregado e comparado — em estados separados, "salvar cenário"
@@ -46,12 +44,10 @@ type ScenarioInput = {
   absenceRange: TimeRange | null;
   spikePct: number;
   spikeDays: Day[];
-  spikeChannel: SpikeChannel;
   spikeRange: TimeRange | null;
   tmaPct: number;
   /** null = usa o valor real do mês. */
-  simWC: number | null;
-  simWA: number | null;
+  sim: number | null;
   hireCount: number;
   hireStart: string;
   hireEnd: string;
@@ -66,11 +62,9 @@ const EMPTY: ScenarioInput = {
   absenceRange: null,
   spikePct: 0,
   spikeDays: [],
-  spikeChannel: "whatsapp",
   spikeRange: null,
   tmaPct: 0,
-  simWC: null,
-  simWA: null,
+  sim: null,
   hireCount: 0,
   hireStart: "09:00",
   hireEnd: "18:00",
@@ -96,8 +90,7 @@ function isDirty(input: ScenarioInput): boolean {
     input.absentIds.length > 0 ||
     (input.spikePct !== 0 && input.spikeDays.length > 0) ||
     input.tmaPct !== 0 ||
-    input.simWC !== null ||
-    input.simWA !== null ||
+    input.sim !== null ||
     input.hireCount > 0
   );
 }
@@ -108,10 +101,8 @@ function Simulador() {
     teamAgents,
     capacityAgents,
     timeBlocks,
-    webchatVolumes,
-    whatsappVolumes,
-    simultaneousWC,
-    simultaneousWA,
+    helpdeskVolumes,
+    simultaneous,
     newHires,
     rowCalculations,
     kpis,
@@ -142,9 +133,6 @@ function Simulador() {
         params.absenceRange,
       );
 
-      const spikesWC = params.spikeChannel !== "whatsapp";
-      const spikesWA = params.spikeChannel !== "webchat";
-
       const extraHires: NewAgentHire[] = Array.from({ length: params.hireCount }, (_, i) => ({
         id: `sim_hire_${i}`,
         name: `Reforço ${i + 1}`,
@@ -157,32 +145,22 @@ function Simulador() {
       return computeGridCalculations({
         days: DAYS,
         timeBlocks,
-        webchatVolumes: spikesWC
-          ? applyVolumeSpike(webchatVolumes, params.spikeDays, params.spikePct, params.spikeRange)
-          : webchatVolumes,
-        whatsappVolumes: spikesWA
-          ? applyVolumeSpike(whatsappVolumes, params.spikeDays, params.spikePct, params.spikeRange)
-          : whatsappVolumes,
+        helpdeskVolumes: applyVolumeSpike(
+          helpdeskVolumes,
+          params.spikeDays,
+          params.spikePct,
+          params.spikeRange,
+        ),
         teamAgents: simTeam,
         dynamicTmaFactors: applyTmaVariation(
           computeDynamicTmaFactors(DAYS, simTeam, capacityAgents),
           params.tmaPct,
         ),
-        simultaneousWC: params.simWC ?? simultaneousWC,
-        simultaneousWA: params.simWA ?? simultaneousWA,
+        simultaneous: params.sim ?? simultaneous,
         newHires: [...newHires, ...extraHires],
       });
     },
-    [
-      teamAgents,
-      capacityAgents,
-      timeBlocks,
-      webchatVolumes,
-      whatsappVolumes,
-      simultaneousWC,
-      simultaneousWA,
-      newHires,
-    ],
+    [teamAgents, capacityAgents, timeBlocks, helpdeskVolumes, simultaneous, newHires],
   );
 
   const simulated = useMemo(() => runScenario(input), [runScenario, input]);
@@ -388,18 +366,6 @@ function Simulador() {
               suffix="%"
               onChange={(spikePct) => patch({ spikePct })}
             />
-            <div>
-              <FieldLabel>Canal</FieldLabel>
-              <select
-                value={input.spikeChannel}
-                onChange={(e) => patch({ spikeChannel: e.target.value as SpikeChannel })}
-                className="rounded-md border bg-background px-2.5 py-1.5 text-sm text-foreground border-border"
-              >
-                <option value="whatsapp">WhatsApp</option>
-                <option value="webchat">Webchat</option>
-                <option value="ambos">Ambos</option>
-              </select>
-            </div>
           </div>
 
           <div className="mt-4 border-t border-border/40 pt-3">
@@ -434,18 +400,11 @@ function Simulador() {
               onChange={(tmaPct) => patch({ tmaPct })}
             />
             <NumberField
-              label="Simultâneos Webchat"
-              value={input.simWC ?? simultaneousWC}
+              label="Simultâneos"
+              value={input.sim ?? simultaneous}
               step={1}
               min={1}
-              onChange={(v) => patch({ simWC: v === simultaneousWC ? null : v })}
-            />
-            <NumberField
-              label="Simultâneos WhatsApp"
-              value={input.simWA ?? simultaneousWA}
-              step={1}
-              min={1}
-              onChange={(v) => patch({ simWA: v === simultaneousWA ? null : v })}
+              onChange={(v) => patch({ sim: v === simultaneous ? null : v })}
             />
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">

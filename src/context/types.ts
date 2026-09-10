@@ -49,41 +49,27 @@ export type RowCalculation = {
   capacity: number[];
   capacityR: number[];
   resultado: number[];
-  agentsWhats: number[];
-  waVolume: number[];
-  waCapacity: number[];
-  waCapacityR: number[];
-  waResultado: number[];
-  waFaltam10: number[];
-  waFaltam20: number[];
+  faltam10: number[];
   prCapacity: number[];
   prCapacityR: number[];
   prResultado: number[];
   prFaltam10: number[];
-  prFaltam20: number[];
 };
 
 export type DayTotals = {
-  wcVolume: number;
-  wcCapacity: number;
-  waVolume: number;
-  waCapacity: number;
-  waDeficit10: number;
+  volume: number;
+  capacity: number;
+  deficit10: number;
   prCapacity: number;
   prDeficit10: number;
 };
 
 export type DimensionamentoKpis = {
-  webchatVolume: number;
-  webchatCapacity: number;
-  whatsappVolume: number;
-  whatsappCapacity: number;
+  helpdeskVolume: number;
+  helpdeskCapacity: number;
   totalDeficit10: number;
-  totalDeficit20: number;
   provaRealDeficit10: number;
-  excedenteTotal: number;
   picoMaximo: { day: string; time: string; deficit: number };
-  horasOciosas: number;
   coberturaProjetada: number;
 };
 
@@ -92,11 +78,9 @@ export type DimensionamentoState = {
   totals: Record<Day, DayTotals>;
   kpis: DimensionamentoKpis;
   timeBlocks: string[];
-  webchatVolumes: Record<string, Record<Day, number>>;
-  whatsappVolumes: Record<string, Record<Day, number>>;
+  helpdeskVolumes: Record<string, Record<Day, number>>;
   tmaFactors: Record<Day, number>;
-  simultaneousWC: number;
-  simultaneousWA: number;
+  simultaneous: number;
   teamAgents: TeamAgent[];
   newHires: NewAgentHire[];
   scenarios: ScenarioParams;
@@ -110,14 +94,9 @@ export type DimensionamentoState = {
   changeActiveMonth: (monthName: string) => Promise<void>;
   createNewMonth: (newMonthName: string) => Promise<void>;
   refreshCurrentMonth: () => Promise<void>;
-  updateTimeBlockVolume: (
-    time: string,
-    day: Day,
-    channel: "webchat" | "whatsapp",
-    value: number,
-  ) => void;
+  updateTimeBlockVolume: (time: string, day: Day, value: number) => void;
   updateTmaFactor: (day: Day, value: number) => void;
-  updateSimultaneous: (channel: "webchat" | "whatsapp", value: number) => void;
+  updateSimultaneous: (value: number) => void;
   setTeamAgents: React.Dispatch<React.SetStateAction<TeamAgent[]>>;
   toggleIntervalStatus: (agentId: string, day: Day, time20: string) => void;
   applyPresetShift: (
@@ -140,9 +119,6 @@ export type DimensionamentoState = {
   isResetConfirmOpen: boolean;
   setIsResetConfirmOpen: (val: boolean) => void;
   executeResetAll: () => Promise<void>;
-  importPowerBIData: (webchatCsv: string, whatsappCsv: string) => boolean;
-  updateChannelVolumes: (
-    channel: "webchat" | "whatsapp",
-    newVolumes: Record<string, Record<Day, number>>,
-  ) => void;
+  importPowerBIData: (helpdeskCsv: string) => boolean;
+  updateHelpdeskVolumes: (newVolumes: Record<string, Record<Day, number>>) => void;
 };

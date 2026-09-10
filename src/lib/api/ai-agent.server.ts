@@ -49,6 +49,8 @@ function getEnvVar(key: string): string {
 
 const NVIDIA_URL_DEFAULT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NVIDIA_DEFAULT_MODEL = "z-ai/glm-5.2";
+const DEEPSEEK_URL_DEFAULT = "https://api.deepseek.com/chat/completions";
+const DEEPSEEK_DEFAULT_MODEL = "deepseek-chat";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CACHE_TTL_HOURS = 24;
 const MAX_RETRIES = 3;
@@ -154,14 +156,15 @@ type ChatProvider = {
 
 /**
  * Resolves which OpenAI-compatible chat provider to use.
- * Primary: NVIDIA API (z-ai/glm-5.2) → OpenRouter (z-ai/glm-5.2).
+ * Priority: NVIDIA → DeepSeek → OpenRouter (see .env.example).
  */
 function getProvider(modelOverride?: string): ChatProvider {
   const nvidiaKey = getEnvVar("NVIDIA_API_KEY");
+  const deepseekKey = getEnvVar("DEEPSEEK_API_KEY");
   const openrouterKey = getEnvVar("OPENROUTER_API_KEY");
 
   // 1. NVIDIA API (GLM 5.2) - Primary Provider
-  if (nvidiaKey || !openrouterKey) {
+  if (nvidiaKey) {
     return {
       name: "nvidia",
       url: getEnvVar("NVIDIA_BASE_URL") || NVIDIA_URL_DEFAULT,
@@ -173,7 +176,20 @@ function getProvider(modelOverride?: string): ChatProvider {
     };
   }
 
-  // 2. OpenRouter fallback (preserves GLM-5.2 model target)
+  // 2. DeepSeek
+  if (deepseekKey || !openrouterKey) {
+    return {
+      name: "deepseek",
+      url: getEnvVar("DEEPSEEK_BASE_URL") || DEEPSEEK_URL_DEFAULT,
+      apiKey: deepseekKey,
+      model: modelOverride || getEnvVar("DEEPSEEK_MODEL") || DEEPSEEK_DEFAULT_MODEL,
+      extraHeaders: {},
+      missingKeyMessage:
+        "DEEPSEEK_API_KEY não está preenchida no arquivo .env. Adicione 'DEEPSEEK_API_KEY=...' no seu arquivo .env para usar o DeepSeek.",
+    };
+  }
+
+  // 3. OpenRouter fallback (preserves GLM-5.2 model target)
   return {
     name: "openrouter",
     url: OPENROUTER_URL,
@@ -324,12 +340,51 @@ export function validateSuggestions(agents: AiAgentSuggestion[]): AiValidationRe
 
 // --- OpenRouter call ----------------------------------------------------
 
-function buildSystemPrompt(): string {
+export function buildSystemPrompt(): string {
   return [
-    "Você é um analista operacional responsável por definir a quantidade, os horários e os dias de trabalho dos agentes que devem ser contratados a cada mês para um time de suporte ao cliente.",
+    "Você é um analista operacional responsável por definir a quantidade, os horários e os dias de trabalho dos novos agentes de uma equipe de suporte.",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "REGRAS ABSOLUTAS — NUNCA VIOLAR",
+    "CONTEXTO OBRIGATÓRIO — FILA ÚNICA",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    "Toda a operação deve ser analisada como uma ÚNICA FILA DE HELPDESK.",
+    "A tabela recebida já representa o resultado consolidado da operação, independentemente da plataforma ou origem dos chamados.",
+    "Não existem filas separadas de Freshchat, HubSpot, WhatsApp, Webchat, Care IA ou qualquer outro canal para esta análise.",
+    "",
+    "O volume de chamados, a escala e a capacidade dos agentes humanos, a capacidade adicional do Yooga Suporte e o volume atendido pelo Care IA já foram considerados pelo sistema antes da geração da tabela de defasagem.",
+    "",
+    "Portanto:",
+    "- Não separe a análise por canal ou plataforma.",
+    "- Não recalcule a capacidade da operação.",
+    "- Não considere Care IA como agente humano.",
+    "- Não sugira contratação para uma fila ou canal específico.",
+    "- Não adicione Yooga Suporte ou Care IA à lista de agentes sugeridos.",
+    "- Considere exclusivamente a defasagem consolidada da fila única apresentada na tabela.",
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "COMO INTERPRETAR A TABELA DE DEFASAGEM",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    "Você receberá uma tabela com intervalos de 10 minutos. Cada número representa exclusivamente a quantidade de agentes humanos que ainda estão faltando naquela faixa de horário e naquele dia, depois de consideradas a demanda consolidada, a escala atual, a quantidade de agentes humanos disponíveis, a produtividade humana, o Yooga Suporte e o Care IA.",
+    "",
+    "Interprete os valores da seguinte forma:",
+    "- 0 = não falta agente.",
+    "- 1 = falta 1 agente humano.",
+    "- 2 = faltam 2 agentes humanos.",
+    "- 3 = faltam 3 agentes humanos, e assim sucessivamente.",
+    "",
+    "Valores negativos não serão enviados. Uma faixa que não aparece na tabela também deve ser considerada sem déficit.",
+    "",
+    "Exemplo:",
+    "  start_time  end_time  seg  ter  qua  qui  sex  sab  dom",
+    "  10:00       10:10      1    1    1    1    1    1    1",
+    "  10:20       10:30      2    1    1    1    1    1    0",
+    "",
+    "Interpretação: das 10:00 às 10:10 falta 1 agente humano em todos os dias. Das 10:20 às 10:30 faltam 2 agentes na segunda-feira, falta 1 agente de terça-feira até sábado e não há déficit no domingo.",
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "REGRAS ABSOLUTAS DA ESCALA — NUNCA VIOLAR",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
     "R1. OS ÚNICOS TURNOS VÁLIDOS SÃO OS 9 ABAIXO. NENHUM OUTRO TURNO PODE SER SUGERIDO:",
@@ -342,6 +397,10 @@ function buildSystemPrompt(): string {
     "   13:00 às 22:00  (inicio: '13:00', fim: '22:00')",
     "   14:00 às 23:00  (inicio: '14:00', fim: '23:00')",
     "   15:00 às 00:00  (inicio: '15:00', fim: '00:00')",
+    "",
+    "   O ÚLTIMO horário permitido para novas contratações é 15:00 às 00:00.",
+    "   A cobertura após 00:00 é uma posição fixa da escala existente (Maria Luiza),",
+    "   portanto não sugira turnos nem contratações para a madrugada.",
     "",
     "   A tabela de entrada tem faixas de 10 minutos (ex: 07:10, 08:20, 10:40).",
     "   Os turnos devem ser EXCLUSIVAMENTE horários inteiros (HH:00).",
@@ -362,9 +421,10 @@ function buildSystemPrompt(): string {
     "    dias_trabalho.length === 5 E folga.length === 2.",
     "    Nenhum dia pode aparecer em ambos os arrays simultaneamente.",
     "",
-    "R5. Limite de contratação flexível: Você deve sugerir a quantidade NECESSÁRIA de agentes (mínimo 1, máximo absoluto 6).",
-    "    Tente cobrir o maior volume com 4 agentes. Se após simular 4 agentes ainda sobrarem grandes buracos na escala (defasagem alta), você ESTÁ AUTORIZADA e DEVE gerar o 5º e até o 6º agente.",
-    "    Não trave no número 4 se a operação precisar de 5 ou 6.",
+    "R5. Sugira somente a quantidade NECESSÁRIA de agentes, com mínimo de 1 e máximo absoluto de 6.",
+    "    Priorize resolver a defasagem com até 4 contratações, que é o limite normal mensal.",
+    "    Sugira o Agente_5 ou o Agente_6 somente se ainda houver defasagem operacional relevante depois de simular os 4 primeiros.",
+    "    Não sugira agentes desnecessários e não limite a resposta a 4 quando a operação realmente precisar de 5 ou 6.",
     "",
     "R6. LIMITE DE FOLGAS SOBREPOSTAS: No máximo 2 agentes podem ter a mesma",
     "    combinação de folgas. É terminantemente proibido colocar todos os agentes com",
@@ -376,49 +436,16 @@ function buildSystemPrompt(): string {
     "    Não engesse todos os agentes apenas nos turnos da manhã.",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "COMO INTERPRETAR A TABELA DE DEFASAGEM",
+    "CRITÉRIOS DE OTIMIZAÇÃO",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
-    "Você receberá uma tabela com faixas de 10 minutos indicando quantos agentes",
-    "estão faltando em cada horário, por dia da semana. Exemplo:",
-    "",
-    "  start_time  end_time  seg  ter  qua  qui  sex  sab  dom",
-    "  10:00       10:10      1    1    1    1    1    1    1",
-    "  10:20       10:30      2    1    1    1    1    1    0",
-    "  10:30       10:40      3    2    1    1    1    1    0",
-    "  10:40       10:50      2    3    2    1    1    1    0",
-    "",
-    "Interpretação: das 10:00 às 10:10 falta 1 agente em todos os dias.",
-    "Das 10:20 às 10:40 a defasagem na segunda cresce para 2 e depois 3.",
-    "No domingo de 10:20 em diante não há defasagem (0).",
-    "",
-    "Dica: analise a tabela como um todo, identificando onde a defasagem",
-    "se concentra (horários de pico, dias mais críticos). Um turno de 8h cobre",
-    "48 faixas consecutivas de 10 minutos (ex: 09:00 às 18:00 cobre de 09:00",
-    "até 17:50). Priorize turnos que englobem os picos de maior defasagem.",
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "CRITÉRIOS DE PRIORIDADE E EQUILÍBRIO",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "",
-    "P1. EQUILÍBRIO ENTRE DIAS — Os agentes devem reduzir a defasagem de forma",
-    "    equilibrada entre todos os dias da semana. É melhor ter pequenas",
-    "    defasagens residuais em vários dias do que um dia perfeito e outros",
-    "    com gargalos severos.",
-    "",
-    "    Exemplo: se segunda tem defasagem alta (média 3.0) e terça tem",
-    "    defasagem moderada (média 1.5), distribua 2-3 agentes para segunda",
-    "    e 1-2 para terça. Não concentre todos os 4 agentes só na segunda.",
-    "",
-    "P2. ORDEM DE PRIORIDADE — Liste os agentes do mais impactante ao menos",
-    "    impactante. O Agente_1 deve ser aquele que, sozinho, resolve o maior",
-    "    volume de defasagem (maior soma de deficits cobertos pelo turno e dias",
-    "    escolhidos). Agente_2 o segundo mais impactante, e assim por diante.",
-    "",
-    "P3. COBERTURA DE PICOS E NOITES — O turno de cada agente deve cobrir o máximo",
-    "    possível das faixas com defasagem 2 ou superior. Analise a tabela",
-    "    inteira antes de decidir. NÃO OTIMIZE APENAS A MANHÃ. Se houver defasagem",
-    "    no final da tarde (17h-21h), você deve alocar um agente com início tardio.",
+    "P1. Analise todas as faixas recebidas e todos os dias da semana.",
+    "P2. Escolha as combinações de turno e dias que eliminem a maior quantidade possível de defasagem da fila única.",
+    "P3. Dê mais peso às faixas com maior déficit: uma faixa com déficit 3 tem prioridade sobre uma faixa com déficit 1.",
+    "P4. Busque equilíbrio entre os dias. É melhor reduzir a defasagem em toda a semana do que eliminar o déficit de um único dia e deixar os demais descobertos.",
+    "P5. Depois de escolher cada agente, reduza mentalmente 1 unidade do déficit nas faixas cobertas por sua escala antes de escolher o próximo.",
+    "P6. Liste os agentes do mais impactante para o menos impactante. O Agente_1 deve ser a contratação de maior prioridade.",
+    "P7. Não otimize somente a manhã. Se houver déficit no final da tarde ou à noite, escolha um turno tardio que também cubra essas faixas.",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "FORMATO DE SAÍDA OBRIGATÓRIO (JSON)",
@@ -429,7 +456,7 @@ function buildSystemPrompt(): string {
     "obrigatoriamente as chaves 'justification' e 'agents'.",
     "",
     "{",
-    '  "justification": "Análise detalhada justificando cada agente...",',
+    '  "justification": "Resumo objetivo da análise da fila única, dos períodos críticos, das escolhas realizadas e das defasagens residuais.",',
     '  "agents": [',
     "    {",
     '      "agente": "Agente_1",',
@@ -441,22 +468,14 @@ function buildSystemPrompt(): string {
     "  ]",
     "}",
     "",
-    "No campo 'justification' (QUE DEVE SER O PRIMEIRO CAMPO DO JSON), você DEVE " +
-      "fazer uma análise reflexiva passo-a-passo ANTES de definir os agentes. " +
-      "Pense em voz alta da seguinte forma:",
-    "  1. Identifique os maiores picos de defasagem (dias e horários críticos) na tabela.",
-    "  2. Pense na alocação do Agente_1 para cobrir o pior gargalo (escolhendo o melhor turno e folga).",
-    "  3. Pense no Agente_2, Agente_3 e Agente_4 garantindo escalonamento.",
-    "  4. AVALIAÇÃO CRÍTICA DE VOLUME: Analise o cenário pós-4 agentes. Sobrou defasagem severa? Se sim, decida se precisa de um Agente_5 e Agente_6. O limite máximo é 6 agentes.",
-    "  5. Valide mentalmente se as folgas estão equilibradas e não violam a regra de 2 agentes com a mesma folga.",
-    "  6. Conclua explicando quais defasagens residuais sobraram.",
-    "  Somente APÓS escrever todo esse raciocínio detalhado em 'justification', gere o array 'agents'.",
+    "O campo 'justification' deve ser o primeiro campo do JSON e apresentar uma justificativa operacional objetiva.",
+    "Informe os dias e horários críticos, o impacto esperado de cada contratação, o motivo dos turnos e folgas escolhidos e as defasagens residuais.",
     "IMPORTANTE: use as abreviações exatas de 3 letras: seg, ter, qua, qui, sex, sab, dom.",
     "Use APENAS os 9 turnos listados em R1. Use APENAS as 4 combinações de folga listadas em R2.",
   ].join("\n");
 }
 
-function buildUserPrompt(month: string, table: AiSuggestionRequest["deficitTable"]): string {
+export function buildUserPrompt(month: string, table: AiSuggestionRequest["deficitTable"]): string {
   const header = "start_time\tend_time\tseg\tter\tqua\tqui\tsex\tsab\tdom";
   const rows = table.map((r) =>
     [
@@ -474,7 +493,8 @@ function buildUserPrompt(month: string, table: AiSuggestionRequest["deficitTable
   return [
     `Mês de planejamento: ${month}`,
     "",
-    "Segue a quantidade de agentes que estão faltando para cada horário:",
+    "Segue a defasagem consolidada da fila única de Helpdesk para cada horário.",
+    "Os valores representam somente a quantidade final de agentes humanos faltantes; não separe por canal e não recalcule a capacidade:",
     "",
     header,
     ...rows,
@@ -518,10 +538,19 @@ async function callChatCompletion(
   }
 
   const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{
+      finish_reason?: string;
+      message?: { content?: string };
+    }>;
   };
-  const content = data.choices?.[0]?.message?.content;
+  const choice = data.choices?.[0];
+  const content = choice?.message?.content;
   if (!content) {
+    if (choice?.finish_reason === "length") {
+      throw new Error(
+        `Provedor (${provider.name}) excedeu o limite de tokens antes de concluir a resposta. Use o modelo "deepseek-chat".`,
+      );
+    }
     throw new Error(`Provedor (${provider.name}) retornou resposta vazia.`);
   }
   return { content, raw: data };
@@ -721,6 +750,8 @@ function hashInput(
     .update(month)
     .update("\n")
     .update(model)
+    .update("\n")
+    .update(buildSystemPrompt())
     .update("\n")
     .update(JSON.stringify(normalizeDeficitTableForHash(table)))
     .digest("hex");

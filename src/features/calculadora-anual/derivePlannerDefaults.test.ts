@@ -19,7 +19,7 @@ const makeAgent = (overrides: Partial<TeamAgent> = {}): TeamAgent => ({
 const emptySource = (): PrefillSource => ({
   teamAgents: [],
   capacityAgents: [],
-  kpis: { webchatVolume: 0, whatsappVolume: 0 },
+  kpis: { helpdeskVolume: 0 },
   scenarios: { clientBase: 0, contactRate: 0, turnoverRate: 0, slaTarget: 95 },
   currentMonth: "Fevereiro 2026",
 });
@@ -54,7 +54,7 @@ describe("derivePlannerDefaults", () => {
 
   it("converts the weekly grid volume to monthly", () => {
     const source = emptySource();
-    source.kpis = { webchatVolume: 1000, whatsappVolume: 2000 };
+    source.kpis = { helpdeskVolume: 3000 };
     const { inputs, sources } = derivePlannerDefaults(source);
     expect(inputs.currentVolume).toBe(Math.round(3000 * WEEKS_PER_MONTH));
     expect(sources.currentVolume).toBe("derived");
