@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { setCachedMonthId, type DirtyArea } from "@/hooks/useSupabasePersistence";
+import { syncCanonicalAreas, type CanonicalArea } from "@/lib/canonical-persistence";
 import {
   DAYS,
   type Day,
@@ -25,23 +27,31 @@ export function useMonthActions(
   setCurrentMonth: React.Dispatch<React.SetStateAction<string>>,
   setHelpdeskVolumes: React.Dispatch<React.SetStateAction<Record<string, Record<Day, number>>>>,
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
-  saveMonthDataToSupabase: (monthName: string) => Promise<void>,
+  saveMonthDataToSupabase: (
+    monthName: string,
+    areasToSave?: ReadonlySet<DirtyArea>,
+  ) => Promise<void>,
   loadMonthDataFromSupabase: (monthName: string) => Promise<void>,
   getSnapshot: () => CreateMonthParams,
+  dirtyAreas: Set<DirtyArea>,
 ) {
   const changeActiveMonth = useCallback(
     async (monthName: string) => {
+      const snap = getSnapshot();
+      if (monthName === snap.currentMonth) return;
+
       const client = supabase;
       if (!client) {
         setCurrentMonth(monthName);
         return;
       }
 
-      const snap = getSnapshot();
-
       try {
         setIsLoading(true);
-        await saveMonthDataToSupabase(snap.currentMonth);
+        // Only save previously active month if there were unsaved changes
+        if (dirtyAreas.size > 0) {
+          await saveMonthDataToSupabase(snap.currentMonth, dirtyAreas);
+        }
         await loadMonthDataFromSupabase(monthName);
         setCurrentMonth(monthName);
       } catch (err) {
@@ -56,6 +66,7 @@ export function useMonthActions(
       loadMonthDataFromSupabase,
       setCurrentMonth,
       setIsLoading,
+      dirtyAreas,
     ],
   );
 
@@ -87,7 +98,9 @@ export function useMonthActions(
 
       try {
         setIsLoading(true);
-        await saveMonthDataToSupabase(snap.currentMonth);
+        if (dirtyAreas.size > 0) {
+          await saveMonthDataToSupabase(snap.currentMonth, dirtyAreas);
+        }
 
         const { data: newMonth, error: insertError } = await client
           .from("meses")
@@ -97,6 +110,7 @@ export function useMonthActions(
 
         if (insertError) throw insertError;
         const newMesId = newMonth.id;
+        setCachedMonthId(newMonthName, newMesId);
 
         await Promise.all([
           client.from("escala_equipe").insert([
@@ -123,15 +137,29 @@ export function useMonthActions(
           ]),
         ]);
 
-        const { data: monthsData, error: monthsError } = await client
-          .from("meses")
-          .select("nome")
-          .order("created_at", { ascending: true });
+        // Espelha o mês novo no schema canônico (best-effort).
+        try {
+          await syncCanonicalAreas(
+            client,
+            newMonthName,
+            {
+              teamAgents: snap.teamAgents,
+              capacityAgents: snap.capacityAgents,
+              helpdeskVolumes: emptyVolumes,
+              tmaFactors: snap.tmaFactors,
+              simultaneous: snap.simultaneous,
+              scenarios: snap.scenarios,
+              newHires: snap.newHires.map((nh) => ({ ...nh, active: true })),
+            },
+            new Set<CanonicalArea>(["escala", "volumes", "parametros"]),
+          );
+        } catch (err) {
+          console.error(`Falha ao espelhar mês ${newMonthName} no schema canônico:`, err);
+        }
 
-        if (monthsError) throw monthsError;
-
-        const updatedMonths = monthsData.map((m: { nome: string }) => m.nome);
-        setAvailableMonths(updatedMonths);
+        setAvailableMonths((prev) =>
+          prev.includes(newMonthName) ? prev : [...prev, newMonthName],
+        );
         setCurrentMonth(newMonthName);
         setHelpdeskVolumes(emptyVolumes);
       } catch (err) {
@@ -147,6 +175,7 @@ export function useMonthActions(
       setAvailableMonths,
       setCurrentMonth,
       setHelpdeskVolumes,
+      dirtyAreas,
     ],
   );
 

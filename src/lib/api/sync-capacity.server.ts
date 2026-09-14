@@ -1,6 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import process from "node:process";
-import { isAiAgent, isSupportAgent, matchAgentName } from "@/lib/agents";
+import {
+  findAiAgent,
+  findSupportAgent,
+  isAiAgent,
+  isHumanAgent,
+  isSupportAgent,
+  matchAgentName,
+} from "@/lib/agents";
+import { syncCanonicalAreas, type CanonicalArea } from "@/lib/canonical-persistence";
 import type { TeamAgent } from "@/context/DimensionamentoContext";
 
 /**
@@ -10,7 +18,7 @@ import type { TeamAgent } from "@/context/DimensionamentoContext";
  * {
  *   "capacity_agents": [
  *     { "name": "Bruno Oliveira", "mediaTri": 1234 },
- *     { "name": "Care AI", "mediaTri": 14696 }
+ *     { "name": "Care IA", "mediaTri": 14696 }
  *   ],
  *   "month": "Junho 2026"  // MANDATORY
  * }
@@ -19,6 +27,7 @@ import type { TeamAgent } from "@/context/DimensionamentoContext";
 export type CapacityAgentPayload = {
   name: string;
   mediaTri: number;
+  active?: boolean;
 };
 
 export type SyncCapacityBody = {
@@ -29,24 +38,34 @@ export type SyncCapacityBody = {
 const MANUAL_CAPACITY_ROWS = ["Yooga Suporte", "Care IA"] as const;
 
 /**
- * Freshchat/HubSpot só alimentam humanos durante a migração. As duas linhas
- * especiais são editadas na UI e devem sobreviver a qualquer sincronização.
+ * Freshchat/HubSpot só alimentam humanos durante a migração. As linhas manuais
+ * Yooga Suporte e Care IA são editadas na UI e devem sobreviver a qualquer sincronização.
  */
 export function preserveManualCapacityAgents(
   incoming: CapacityAgentPayload[],
   persisted: CapacityAgentPayload[],
+  previousMonth: CapacityAgentPayload[] = [],
 ): CapacityAgentPayload[] {
   const humans = incoming.filter((agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name));
 
   return [
     ...humans,
     ...MANUAL_CAPACITY_ROWS.map((name) => {
-      const existing = persisted.find((agent) =>
-        name === "Care IA" ? isAiAgent(agent.name) : isSupportAgent(agent.name),
-      );
-      return { name, mediaTri: existing?.mediaTri ?? 0 };
+      const isAi = isAiAgent(name);
+      const existing = isAi
+        ? (findAiAgent(persisted) ?? findAiAgent(previousMonth))
+        : (findSupportAgent(persisted) ?? findSupportAgent(previousMonth));
+      return {
+        name,
+        mediaTri: existing?.mediaTri ?? 0,
+        active: existing?.active ?? true,
+      };
     }),
   ];
+}
+
+export function removeSpecialTeamAgents(teamAgents: TeamAgent[]): TeamAgent[] {
+  return teamAgents.filter((agent) => isHumanAgent(agent.name));
 }
 
 type SyncResult =
@@ -127,7 +146,7 @@ export async function handleSyncCapacity(
   // 2. Find the month ID
   const { data: monthObj, error: monthError } = await supabase
     .from("meses")
-    .select("id")
+    .select("id, created_at")
     .eq("nome", targetMonth)
     .single();
 
@@ -161,19 +180,65 @@ export async function handleSyncCapacity(
   }
 
   const currentTeamAgents = (escalaObj?.team_agents || []) as TeamAgent[];
+  const persistedCapacityAgents = (escalaObj?.capacity_agents || []) as CapacityAgentPayload[];
+  const hasAllManualRows =
+    Boolean(findSupportAgent(persistedCapacityAgents)) &&
+    Boolean(findAiAgent(persistedCapacityAgents));
+
+  let previousCapacityAgents: CapacityAgentPayload[] = [];
+  if (!hasAllManualRows) {
+    const { data: previousMonth, error: previousMonthError } = await supabase
+      .from("meses")
+      .select("id")
+      .lt("created_at", monthObj.created_at)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (previousMonthError) {
+      return {
+        status: 500,
+        data: {
+          success: false,
+          error: `Erro ao buscar o mês anterior: ${previousMonthError.message}`,
+        },
+      };
+    }
+
+    if (previousMonth) {
+      const { data: previousScale, error: previousScaleError } = await supabase
+        .from("escala_equipe")
+        .select("capacity_agents")
+        .eq("mes_id", previousMonth.id)
+        .maybeSingle();
+
+      if (previousScaleError) {
+        return {
+          status: 500,
+          data: {
+            success: false,
+            error: `Erro ao buscar os volumes manuais do mês anterior: ${previousScaleError.message}`,
+          },
+        };
+      }
+
+      previousCapacityAgents = (previousScale?.capacity_agents || []) as CapacityAgentPayload[];
+    }
+  }
+
   const incomingAgents = preserveManualCapacityAgents(
     body.capacity_agents,
-    (escalaObj?.capacity_agents || []) as CapacityAgentPayload[],
+    persistedCapacityAgents,
+    previousCapacityAgents,
   );
 
-  // 4. Determine agents to keep, add, or remove
-  // We should NOT delete existing team agents just because they aren't in the incoming capacity list.
-  // They might be inactive, managers, or not in Freshchat. We keep all existing agents.
-  const keptTeamAgents = [...currentTeamAgents];
+  // 4. Keep every human already registered, but clean special capacity aliases
+  // that were incorrectly persisted as members of the human roster.
+  const keptTeamAgents = removeSpecialTeamAgents(currentTeamAgents);
 
-  // For logging purposes, we can consider an agent "removed from capacity" if they were in the previous capacity_agents but not the new one,
-  // but we do NOT remove them from the team roster.
-  const removedAgentNames: string[] = [];
+  const removedAgentNames = currentTeamAgents
+    .filter((agent) => !isHumanAgent(agent.name))
+    .map((agent) => agent.name);
 
   // Add: Incoming agents that do not match any team agent
   const addedAgentNames: string[] = [];
@@ -214,6 +279,18 @@ export async function handleSyncCapacity(
         error: `Erro ao atualizar escala_equipe no Supabase: ${updateError.message}`,
       },
     };
+  }
+
+  // Espelha no schema canônico (best-effort): agentes, escala e capacity.
+  try {
+    await syncCanonicalAreas(
+      supabase,
+      targetMonth,
+      { teamAgents: finalTeamAgents, capacityAgents: incomingAgents },
+      new Set<CanonicalArea>(["escala"]),
+    );
+  } catch (err) {
+    console.error("Falha ao espelhar sync de capacity no schema canônico:", err);
   }
 
   return {

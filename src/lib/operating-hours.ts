@@ -27,9 +27,7 @@ export function generateOperatingTimeBlocks(intervalMinutes: 10 | 20): string[] 
 export function isHelpdeskOpen(day: Day, time: string): boolean {
   if (time >= SERVICE_START) return true;
   const overnightEnd =
-    day === "Domingo" || day === "Segunda"
-      ? SUNDAY_MONDAY_OVERNIGHT_END
-      : WEEKDAY_OVERNIGHT_END;
+    day === "Domingo" || day === "Segunda" ? SUNDAY_MONDAY_OVERNIGHT_END : WEEKDAY_OVERNIGHT_END;
   return time < overnightEnd;
 }
 

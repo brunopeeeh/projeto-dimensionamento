@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Calculator, Wand2, AlertTriangle, Sparkles, Check } from "lucide-react";
+import { Calculator, Wand2, AlertTriangle, Sparkles, Check, RefreshCw } from "lucide-react";
 
 import { AiAgentSuggestion } from "@/lib/ai-suggestion";
 
@@ -21,6 +21,8 @@ type Props = {
   justification: string;
   onApply: () => void;
   isReadOnly: boolean;
+  onForceRefresh?: () => void;
+  isLoading?: boolean;
 };
 
 export function AiSuggestionDialog({
@@ -34,6 +36,8 @@ export function AiSuggestionDialog({
   justification,
   onApply,
   isReadOnly,
+  onForceRefresh,
+  isLoading,
 }: Props) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -78,35 +82,23 @@ export function AiSuggestionDialog({
           </div>
         )}
 
-        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+        {result && !result.success && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-xs text-red-700 dark:text-red-400">
+            {result.message}
+          </div>
+        )}
+
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
           {agents.length === 0 && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-xs space-y-2">
-              <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" />A IA respondeu, mas nenhum agente
-                válido foi gerado
-              </div>
-              {result?.message && (
-                <p className="text-amber-700/90 dark:text-amber-400/90 leading-relaxed">
-                  {result.message}
-                </p>
-              )}
-              <p className="text-muted-foreground leading-relaxed">
-                Isso costuma ocorrer quando o modelo não devolve um JSON válido ou viola as regras
-                da escala 5x2. Tente gerar novamente; se persistir, ajuste o modelo em{" "}
-                <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">
-                  OPENROUTER_MODEL
-                </code>{" "}
-                ou revise a tabela de defasagens.
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground italic">Nenhum agente sugerido.</p>
           )}
           {agents.map((a, i) => (
             <div
               key={i}
-              className="flex flex-wrap items-center gap-3 rounded-lg border bg-background p-3 text-sm border-border"
+              className="flex items-center gap-3 rounded-lg border bg-muted/20 p-2.5 text-xs border-border"
             >
-              <span className="font-semibold text-foreground">{a.agente}</span>
-              <span className="text-muted-foreground">
+              <span className="font-mono font-bold text-foreground min-w-[70px]">{a.agente}</span>
+              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                 {a.inicio}–{a.fim}
               </span>
               <div className="flex flex-wrap gap-1">
@@ -144,23 +136,39 @@ export function AiSuggestionDialog({
           </div>
         )}
 
-        <DialogFooter className="gap-2">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent border-border cursor-pointer"
-          >
-            Fechar
-          </button>
-          <button
-            type="button"
-            onClick={onApply}
-            disabled={agents.length === 0 || isReadOnly}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <Check className="h-3.5 w-3.5" />
-            Aplicar à Simulação
-          </button>
+        <DialogFooter className="gap-2 sm:justify-between items-center w-full">
+          <div>
+            {meta?.cached && onForceRefresh && !meta.model?.includes("math") && (
+              <button
+                type="button"
+                onClick={onForceRefresh}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                title="Ignorar cache de 24h e gerar nova consulta à IA"
+              >
+                <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+                Recalcular (ignorar cache)
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent border-border cursor-pointer"
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              onClick={onApply}
+              disabled={agents.length === 0 || isReadOnly}
+              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Aplicar à Simulação
+            </button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

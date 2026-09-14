@@ -1,4 +1,5 @@
 import process from "node:process";
+import { matchAgentName } from "@/lib/agents";
 
 /**
  * Server-only module: volume de chamados do Helpdesk HubSpot por agente do
@@ -18,6 +19,8 @@ const SUPPORT_TEAM_ID = "7684604";
 const PIPELINE_STAGE_ID = "1092753784";
 // Canais de origem contabilizados (helpdesk).
 const CHANNEL_INSTANCE_IDS = ["1583825086", "3405228652"];
+// Concorrência controlada para consultas de contagem de tickets (respeitando limite de reqs).
+const HUBSPOT_SEARCH_CONCURRENCY = 4;
 
 type HubspotOwner = {
   id: string;
@@ -126,14 +129,19 @@ async function countTickets(
 
 /**
  * Volume de chamados do Helpdesk por agente de Suporte na janela informada
- * (a mesma calculada para o Freshchat). Sequencial de propósito: o endpoint
- * de search é o mais restrito da API HubSpot e o time tem poucas dezenas de
- * agentes.
+ * (a mesma calculada para o Freshchat).
+ *
+ * Otimizações:
+ * - Filtra previamente por `teamAgentNames` quando fornecido, evitando chamadas inúteis.
+ * - Utiliza concorrência controlada (4 workers) em vez de processamento estritamente sequencial.
  */
-export async function getHubspotVolumes90Days(window: {
-  start: Date;
-  end: Date;
-}): Promise<HubspotAgentVolume[]> {
+export async function getHubspotVolumes90Days(
+  window: {
+    start: Date;
+    end: Date;
+  },
+  teamAgentNames?: string[],
+): Promise<HubspotAgentVolume[]> {
   const token = process.env.HUBSPOT_ACCESS_TOKEN || "";
   if (!token) {
     throw new Error("HUBSPOT_ACCESS_TOKEN não configurado no .env do servidor.");
@@ -145,11 +153,32 @@ export async function getHubspotVolumes90Days(window: {
   const endMs = window.end.getTime() - 1;
 
   const owners = await getSupportOwners(token);
-  const volumes: HubspotAgentVolume[] = [];
 
-  for (const owner of owners) {
-    const name = `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.id;
-    volumes.push({ name, total: await countTickets(token, owner.id, startMs, endMs) });
+  // Filtragem prévia dos agentes caso nomes da escala tenham sido fornecidos
+  const relevantOwners =
+    teamAgentNames && teamAgentNames.length > 0
+      ? owners.filter((owner) => {
+          const fullName = `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.id;
+          return teamAgentNames.some((name) => matchAgentName(name, fullName));
+        })
+      : owners;
+
+  const volumes: HubspotAgentVolume[] = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < relevantOwners.length) {
+      const owner = relevantOwners[cursor++];
+      const name = `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.id;
+      const total = await countTickets(token, owner.id, startMs, endMs);
+      volumes.push({ name, total });
+    }
+  }
+
+  const workerCount = Math.min(HUBSPOT_SEARCH_CONCURRENCY, relevantOwners.length);
+  if (workerCount > 0) {
+    const workers = Array.from({ length: workerCount }, (): Promise<void> => worker());
+    await Promise.all(workers);
   }
 
   return volumes;

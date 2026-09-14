@@ -1,4 +1,4 @@
-import { Calendar } from "lucide-react";
+import { Calendar, Edit2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -25,6 +25,7 @@ type Props = {
   readOnlyCLT: boolean;
   getAgentDaySummary: (agent: TeamAgent, day: Day) => string;
   onToggleInterval: (agentId: string, day: Day, block: string) => void;
+  onEditAgent?: (agent: TeamAgent) => void;
 };
 
 export function ScheduleGrid({
@@ -36,6 +37,7 @@ export function ScheduleGrid({
   readOnlyCLT,
   getAgentDaySummary,
   onToggleInterval,
+  onEditAgent,
 }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragAction, setDragAction] = useState<"trabalhando" | "folga" | null>(null);
@@ -170,15 +172,15 @@ export function ScheduleGrid({
         {viewMode === "global" && (
           <div className="flex flex-wrap gap-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground animate-in fade-in duration-200 bg-muted/20 border border-border/50 px-3.5 py-2 rounded-lg">
             <span className="flex items-center gap-1.5 select-none">
-              <span className="h-3.5 w-3.5 bg-[#c6dfc0] rounded border border-slate-300 dark:border-slate-800 shrink-0"></span>{" "}
+              <span className="h-3.5 w-3.5 bg-[#006D3E] rounded border border-[#006D3E] shrink-0"></span>{" "}
               Trabalhando
             </span>
             <span className="flex items-center gap-1.5 select-none">
-              <span className="h-3.5 w-3.5 bg-[#f8b890] rounded border border-slate-300 dark:border-slate-800 shrink-0"></span>{" "}
+              <span className="h-3.5 w-3.5 bg-[#F54A00] rounded border border-[#F54A00] shrink-0"></span>{" "}
               Pausa / Almoço
             </span>
             <span className="flex items-center gap-1.5 select-none">
-              <span className="h-3.5 w-3.5 bg-[#bae1ff] rounded border border-slate-300 dark:border-slate-800 shrink-0"></span>{" "}
+              <span className="h-3.5 w-3.5 bg-[#008AD4] rounded border border-[#008AD4] shrink-0"></span>{" "}
               Externo (Offchat)
             </span>
             <span className="flex items-center gap-1.5 select-none">
@@ -230,15 +232,27 @@ export function ScheduleGrid({
 
                 return (
                   <tr key={agent.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-3.5 pl-5 font-bold text-foreground flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full shrink-0 ${agent.isSimulated ? "bg-emerald-500 animate-pulse" : "bg-emerald-400"}`}
-                      ></span>
-                      <span className="truncate">{agent.name}</span>
-                      {agent.isSimulated && (
-                        <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 scale-90">
-                          Simulado
-                        </span>
+                    <td className="p-3.5 pl-5 font-bold text-foreground flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`h-2 w-2 rounded-full shrink-0 ${agent.isSimulated ? "bg-emerald-500 animate-pulse" : "bg-emerald-400"}`}
+                        ></span>
+                        <span className="truncate">{agent.name}</span>
+                        {agent.isSimulated && (
+                          <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 scale-90">
+                            Simulado
+                          </span>
+                        )}
+                      </div>
+                      {onEditAgent && !agent.isSimulated && (
+                        <button
+                          type="button"
+                          onClick={() => onEditAgent(agent)}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+                          title={`Editar escala semanal de ${agent.name}`}
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </td>
                     <td className="p-3.5 font-bold text-foreground font-mono">{shift}</td>
@@ -297,9 +311,20 @@ export function ScheduleGrid({
                     {visibleAgents.map((col) => (
                       <th
                         key={col.id}
-                        className={`border border-slate-200 dark:border-slate-800 p-2 font-medium text-center text-[11px] bg-card align-middle ${col.isSimulated ? "border-emerald-500/20 bg-emerald-500/5" : ""}`}
+                        className={`border border-slate-200 dark:border-slate-800 p-2 font-medium text-center text-[11px] bg-card align-middle ${
+                          col.isSimulated ? "border-emerald-500/20 bg-emerald-500/5" : ""
+                        } ${onEditAgent && !col.isSimulated ? "cursor-pointer hover:bg-muted/60 transition-colors group" : ""}`}
                         style={{ minWidth: 100 }}
-                        title={col.name}
+                        title={
+                          onEditAgent && !col.isSimulated
+                            ? `Clique para editar a escala semanal de ${col.name}`
+                            : col.name
+                        }
+                        onClick={() => {
+                          if (onEditAgent && !col.isSimulated) {
+                            onEditAgent(col);
+                          }
+                        }}
                       >
                         <div className="flex flex-col items-center justify-center gap-0.5 w-full">
                           {col.isSimulated && (
@@ -307,9 +332,14 @@ export function ScheduleGrid({
                               SIM
                             </span>
                           )}
-                          <span className="truncate max-w-full font-semibold text-foreground/80 tracking-wide">
-                            {formatAbbreviatedName(col.name)}
-                          </span>
+                          <div className="flex items-center justify-center gap-1 max-w-full">
+                            <span className="truncate font-semibold text-foreground/80 tracking-wide">
+                              {formatAbbreviatedName(col.name)}
+                            </span>
+                            {onEditAgent && !col.isSimulated && (
+                              <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground shrink-0" />
+                            )}
+                          </div>
                         </div>
                       </th>
                     ))}

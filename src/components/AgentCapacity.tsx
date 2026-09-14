@@ -2,11 +2,16 @@ import { useMemo, useState } from "react";
 import { fmtNum } from "@/lib/utils";
 import { RotateCcw, TrendingUp, Users, Headphones, Bot, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { matchAgentName, isAiAgent, isSupportAgent } from "@/lib/agents";
+import {
+  findAiAgent,
+  findSupportAgent,
+  matchAgentName,
+  isAiAgent,
+  isSupportAgent,
+} from "@/lib/agents";
 import { useDimensionamento, Day, TeamAgent } from "@/context/DimensionamentoContext";
 import { DaySelector } from "@/components/DaySelector";
 import { Tooltip } from "@/components/ui/tooltip";
-import { AI_DAYS_PER_MONTH, AI_HOURS_PER_DAY } from "@/lib/constants";
 import { computeAverageCapacity } from "@/lib/calculations";
 
 const SHIFT_HOURS = 8;
@@ -15,17 +20,6 @@ function deriveRow(mediaTri: number) {
   const mediaMes = mediaTri / 3;
   const resolvidosDia = mediaMes / 20;
   const resolvidosHora = resolvidosDia / SHIFT_HOURS;
-  const resolvidos20 = resolvidosHora / 3;
-  const resolvidos10 = resolvidosHora / 6;
-  return { mediaMes, resolvidosDia, resolvidosHora, resolvidos20, resolvidos10 };
-}
-
-// A IA atende 24/7 — a jornada é o calendário completo (30 dias x 24h), não a
-// jornada humana de 8h x 20 dias úteis.
-function deriveAiRow(mediaTri: number) {
-  const mediaMes = mediaTri / 3;
-  const resolvidosDia = mediaMes / AI_DAYS_PER_MONTH;
-  const resolvidosHora = resolvidosDia / AI_HOURS_PER_DAY;
   const resolvidos20 = resolvidosHora / 3;
   const resolvidos10 = resolvidosHora / 6;
   return { mediaMes, resolvidosDia, resolvidosHora, resolvidos20, resolvidos10 };
@@ -41,6 +35,7 @@ const isScheduledOnDay = (agent: TeamAgent, day: Day) => {
 export function AgentCapacity() {
   const capacityAgents = useDimensionamento((s) => s.capacityAgents);
   const updateCapacityAgent = useDimensionamento((s) => s.updateCapacityAgent);
+  const setCapacityAgentActive = useDimensionamento((s) => s.setCapacityAgentActive);
   const resetAll = useDimensionamento((s) => s.resetAll);
   const isReadOnly = useDimensionamento((s) => s.isReadOnly);
   const teamAgents = useDimensionamento((s) => s.teamAgents);
@@ -55,22 +50,27 @@ export function AgentCapacity() {
       return;
     }
     setIsSyncing(true);
-    const loadingId = toast.loading(`Sincronizando Freshchat → ${currentMonth}…`);
+    const loadingId = toast.loading(`Sincronizando com Freshchat/HubSpot (${currentMonth})…`);
     try {
-      const teamAgentNames = teamAgents.filter((a) => a.active).map((a) => a.name);
+      const humanTeamNames = teamAgents
+        .filter((a) => a.active && !isAiAgent(a.name) && !isSupportAgent(a.name))
+        .map((a) => a.name);
+
       const res = await fetch("/api/sync-from-freshchat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ month: currentMonth, teamAgentNames }),
+        body: JSON.stringify({
+          month: currentMonth,
+          teamAgentNames: humanTeamNames,
+        }),
       });
       const data = (await res.json()) as {
         success: boolean;
         message: string;
-        agents_synced: number;
-        error?: string;
+        agents_synced?: number;
       };
       if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || `HTTP ${res.status}`);
+        throw new Error(data.message || "Erro na sincronização.");
       }
       await refreshCurrentMonth();
       toast.success(data.message, { id: loadingId });
@@ -83,13 +83,18 @@ export function AgentCapacity() {
   };
 
   const supportRow = useMemo(() => {
-    const row = capacityAgents.find((a) => isSupportAgent(a.name));
-    return row ? { ...row, ...deriveRow(row.mediaTri) } : undefined;
+    const row = findSupportAgent(capacityAgents) ?? { name: "Yooga Suporte", mediaTri: 0 };
+    return { ...row, ...deriveRow(row.mediaTri) };
   }, [capacityAgents]);
 
   const aiRow = useMemo(() => {
-    const row = capacityAgents.find((a) => isAiAgent(a.name));
-    return row ? { ...row, ...deriveAiRow(row.mediaTri) } : undefined;
+    const row = findAiAgent(capacityAgents) ?? { name: "Care IA", mediaTri: 0, active: true };
+    const active = row.active !== false;
+    return {
+      ...row,
+      active,
+      ...deriveRow(row.mediaTri),
+    };
   }, [capacityAgents]);
 
   // Dynamically map active team agents to capacity humanRows, defaulting mediaTri to 750
@@ -140,51 +145,54 @@ export function AgentCapacity() {
     return list.reduce((s, r) => s + r.resolvidosHora, 0);
   }, [humanAgentsFiltered]);
 
-  // Yooga Suporte representa uma posição agregada; Care IA contribui com
-  // volume resolvido, mas nunca aumenta o divisor de posições.
-  const currentCapacity = useMemo(() => {
-    const support = supportRow?.resolvidosHora ?? 0;
-    const ai = aiRow?.resolvidosHora ?? 0;
-    return computeAverageCapacity(totalResolvidosHora + support + ai, operationalDivisor);
-  }, [totalResolvidosHora, operationalDivisor, supportRow, aiRow]);
-
   const totalResolvidos20 = useMemo(() => {
     const list = humanAgentsFiltered;
     return list.reduce((s, r) => s + r.resolvidos20, 0);
   }, [humanAgentsFiltered]);
-
-  const currentCapacity20min = useMemo(() => {
-    const support = supportRow?.resolvidos20 ?? 0;
-    const ai = aiRow?.resolvidos20 ?? 0;
-    return computeAverageCapacity(totalResolvidos20 + support + ai, operationalDivisor);
-  }, [totalResolvidos20, operationalDivisor, supportRow, aiRow]);
 
   const totalResolvidos10 = useMemo(() => {
     const list = humanAgentsFiltered;
     return list.reduce((s, r) => s + r.resolvidos10, 0);
   }, [humanAgentsFiltered]);
 
+  const aiResolvidosHora = aiRow?.active ? aiRow.resolvidosHora : 0;
+  const aiResolvidos20 = aiRow?.active ? aiRow.resolvidos20 : 0;
+  const aiResolvidos10 = aiRow?.active ? aiRow.resolvidos10 : 0;
+
+  // Yooga Suporte soma 1 no divisor; Care IA não entra no divisor
+  const currentCapacity = useMemo(() => {
+    const support = supportRow?.resolvidosHora ?? 0;
+    return computeAverageCapacity(
+      totalResolvidosHora + support + aiResolvidosHora,
+      operationalDivisor,
+    );
+  }, [totalResolvidosHora, operationalDivisor, supportRow, aiResolvidosHora]);
+
+  const currentCapacity20min = useMemo(() => {
+    const support = supportRow?.resolvidos20 ?? 0;
+    return computeAverageCapacity(totalResolvidos20 + support + aiResolvidos20, operationalDivisor);
+  }, [totalResolvidos20, operationalDivisor, supportRow, aiResolvidos20]);
+
   const currentCapacityWebchat = useMemo(() => {
     const support = supportRow?.resolvidos10 ?? 0;
-    const ai = aiRow?.resolvidos10 ?? 0;
-    return computeAverageCapacity(totalResolvidos10 + support + ai, operationalDivisor);
-  }, [totalResolvidos10, operationalDivisor, supportRow, aiRow]);
+    return computeAverageCapacity(totalResolvidos10 + support + aiResolvidos10, operationalDivisor);
+  }, [totalResolvidos10, operationalDivisor, supportRow, aiResolvidos10]);
 
   return (
     <div className="space-y-6">
-      {/* Premium themed operational cards grid */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Operational cards grid */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* Card 1: Equipe Care */}
         <div className="rounded-xl border bg-card p-5 shadow-sm flex items-center gap-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-md border-border">
-          <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
             <Users className="h-6 w-6" />
           </div>
-          <div>
-            <span className="text-xs text-muted-foreground font-medium">Equipe Care</span>
+          <div className="min-w-0">
+            <span className="text-xs text-muted-foreground font-medium block">Equipe Care</span>
             <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground">
               {humanAgentsFiltered.length}
             </div>
-            <span className="text-[10px] text-muted-foreground font-medium lowercase">
+            <span className="text-[10px] text-muted-foreground font-medium lowercase block">
               agentes ativos
             </span>
           </div>
@@ -192,47 +200,100 @@ export function AgentCapacity() {
 
         {/* Card 2: Yooga Suporte */}
         <div className="rounded-xl border bg-card p-5 shadow-sm flex items-center gap-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-md border-border">
-          <div className="p-3 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
+          <div className="p-3 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0">
             <Headphones className="h-6 w-6" />
           </div>
-          <div>
-            <span className="text-xs text-muted-foreground font-medium">Yooga Suporte</span>
+          <div className="min-w-0">
+            <span className="text-xs text-muted-foreground font-medium block">Yooga Suporte</span>
             <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground">
-              {supportRow ? fmtNum(supportRow.mediaTri / 3 / 20, 4) : 61}
+              {supportRow ? fmtNum(supportRow.resolvidosDia, 2) : "61,00"}
             </div>
-            <span className="text-[10px] text-muted-foreground font-medium lowercase">
+            <span className="text-[10px] text-muted-foreground font-medium lowercase block">
               resolvidos/dia
             </span>
           </div>
         </div>
 
-        {/* Card 3: Care AI */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm flex items-center gap-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-md border-border">
-          <div className="p-3 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-            <Bot className="h-6 w-6" />
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground font-medium">Care AI</span>
-            <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground">
-              {aiRow ? fmtNum(aiRow.resolvidosDia, 4) : 245}
+        {/* Card 3: Care IA */}
+        <div
+          className={`rounded-xl border bg-card p-5 shadow-sm flex items-center justify-between gap-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-md ${
+            aiRow?.active && aiRow.mediaTri > 0
+              ? "border-indigo-500/30 bg-indigo-500/5 dark:border-indigo-500/20"
+              : "border-border opacity-90"
+          }`}
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div
+              className={`p-3 rounded-lg shrink-0 ${
+                aiRow?.active && aiRow.mediaTri > 0
+                  ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <Bot className="h-6 w-6" />
             </div>
-            <span className="text-[10px] text-muted-foreground font-medium lowercase">
-              resolvidos/dia (24/7)
-            </span>
+            <div className="min-w-0">
+              <span className="text-xs text-muted-foreground font-medium block">Care IA</span>
+              <div className="text-3xl font-bold tracking-tight mt-0.5 text-foreground font-mono truncate">
+                {aiRow?.active ? fmtNum(aiRow.resolvidosDia, 2) : "0,00"}
+              </div>
+              <span className="text-[10px] text-muted-foreground font-medium lowercase block">
+                {aiRow?.active
+                  ? aiRow.mediaTri > 0
+                    ? "resolvidos/dia"
+                    : "volume zerado"
+                  : "desativada do cálculo"}
+              </span>
+            </div>
           </div>
+
+          <button
+            type="button"
+            disabled={isReadOnly}
+            onClick={() => {
+              if (aiRow) {
+                setCapacityAgentActive(aiRow.name, !aiRow.active);
+                toast.info(
+                  !aiRow.active
+                    ? "Care IA ativada no dimensionamento."
+                    : "Care IA desativada do dimensionamento (volume zerado no cálculo).",
+                );
+              }
+            }}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              aiRow?.active
+                ? "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/30"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border"
+            }`}
+            title={
+              aiRow?.active
+                ? "Clique para desativar a Care IA do cálculo"
+                : "Clique para ativar a Care IA no cálculo"
+            }
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                aiRow?.active && aiRow.mediaTri > 0
+                  ? "bg-indigo-600 dark:bg-indigo-400 animate-pulse"
+                  : aiRow?.active
+                    ? "bg-amber-500"
+                    : "bg-muted-foreground/50"
+              }`}
+            />
+            {aiRow?.active ? (aiRow.mediaTri > 0 ? "Ativa" : "Zerada") : "Inativa"}
+          </button>
         </div>
       </div>
 
-      {/* Métricas de Capacidade Premium Card */}
+      {/* Métricas de Capacidade Card */}
       <div className="rounded-xl border bg-card p-5 shadow-sm border-border">
         <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-emerald-500" />
           Métricas de Capacidade
         </h3>
-        <div
-          className={`grid gap-3 ${selectedDay === "Todos" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1"}`}
-        >
-          {selectedDay === "Todos" && (
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          {selectedDay === "Todos" ? (
             <>
               {/* Capsule 1: Capacity */}
               <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
@@ -244,17 +305,8 @@ export function AgentCapacity() {
                   {fmtNum(currentCapacity, 2)}
                 </div>
               </div>
-              {/* Capsule 2: contribuição da IA */}
-              <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
-                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
-                  Care IA/10min{" "}
-                  <Tooltip content="Volume resolvido pela Care IA por bloco de 10 minutos. Entra no cálculo do Capacity, mas a IA não entra no divisor de agentes." />
-                </span>
-                <div className="text-xl font-bold text-foreground mt-1 font-mono tracking-tight">
-                  {fmtNum(aiRow?.resolvidos10 ?? 0, 3)}
-                </div>
-              </div>
-              {/* Capsule 3: Capacity/20min */}
+
+              {/* Capsule 2: Capacity/20min */}
               <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
                 <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
                   Capacity/20min{" "}
@@ -264,18 +316,55 @@ export function AgentCapacity() {
                   {fmtNum(currentCapacity20min, 2)}
                 </div>
               </div>
+
+              {/* Capsule 3: Capacity Helpdesk/10min */}
+              <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
+                  Capacity Helpdesk/10min{" "}
+                  <Tooltip content="(Volume dos humanos + Yooga Suporte + Care IA se ativa) dividido pelos humanos + 1 posição de Yooga Suporte." />
+                </span>
+                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono tracking-tight">
+                  {fmtNum(currentCapacityWebchat, 2)}
+                </div>
+              </div>
+
+              {/* Capsule 4: Care IA por 10min (apenas na Visão Geral) */}
+              <div
+                className={`border rounded-lg p-3 text-center transition-colors ${
+                  aiRow?.active && aiRow.mediaTri > 0
+                    ? "bg-indigo-500/10 border-indigo-500/30"
+                    : "bg-muted/40 border-border/80 opacity-70"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
+                  Care IA/10min{" "}
+                  <Tooltip content="Volume de chamados absorvidos pela Care IA a cada 10 min (base 20d x 8h). Não ocupa assento no divisor." />
+                </span>
+                <div
+                  className={`text-xl font-bold mt-1 font-mono tracking-tight ${
+                    aiRow?.active && aiRow.mediaTri > 0
+                      ? "text-indigo-600 dark:text-indigo-400"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {aiRow?.active ? fmtNum(aiRow.resolvidos10, 2) : "0,00"}
+                </div>
+              </div>
             </>
-          )}
-          {/* Capsule 4: capacity composto da fila única */}
-          <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
-            <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
-              Capacity Helpdesk/10min{" "}
-              <Tooltip content="(Volume dos humanos + Yooga Suporte + Care IA) dividido pelos humanos + 1 posição de Yooga Suporte. A Care IA não entra como agente." />
-            </span>
-            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono tracking-tight">
-              {fmtNum(currentCapacityWebchat, 2)}
+          ) : (
+            /* Em dias específicos (Segunda a Domingo), exibe somente o Capacity Helpdesk daquele dia, sem replicar Care IA */
+            <div className="bg-muted/40 border border-border/80 rounded-lg p-3 text-center">
+              <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center justify-center gap-0.5">
+                Capacity Helpdesk/10min{" "}
+                <Tooltip
+                  content={`Capacidade média calculada especificamente para ${selectedDay}.`}
+                />
+              </span>
+              <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono tracking-tight">
+                {fmtNum(currentCapacityWebchat, 2)}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -353,16 +442,16 @@ export function AgentCapacity() {
                 </tr>
               ))}
 
-              {/* Blank separator row to divide active agents from Yooga Suporte and Care AI */}
+              {/* Blank separator row to divide active agents from Yooga Suporte */}
               {humanAgentsFiltered.length > 0 && (
                 <tr className="h-6 bg-muted/5 border-b border-border/10">
                   <td colSpan={7} className="p-0"></td>
                 </tr>
               )}
 
-              {/* Static Average and AI Rows */}
+              {/* Static Average Row: Yooga Suporte */}
               {supportRow && (
-                <tr className="border-b bg-muted/10 font-medium">
+                <tr className="border-b last:border-0 bg-muted/10 font-medium">
                   <td className="px-4 py-2.5 text-muted-foreground">{supportRow.name}</td>
                   <td className="px-4 py-2 text-right">
                     <input
@@ -384,9 +473,41 @@ export function AgentCapacity() {
                   <Td>{fmtNum(supportRow.resolvidos10, 3)}</Td>
                 </tr>
               )}
+
+              {/* Special Row: Care IA */}
               {aiRow && (
-                <tr className="border-b last:border-0 bg-muted/20 font-semibold">
-                  <td className="px-4 py-2.5 text-foreground">{aiRow.name}</td>
+                <tr
+                  className={`border-b last:border-0 font-medium transition-colors ${
+                    aiRow.active
+                      ? "bg-indigo-500/5 hover:bg-indigo-500/10"
+                      : "bg-muted/10 opacity-60 hover:opacity-90"
+                  }`}
+                >
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-foreground font-semibold">{aiRow.name}</span>
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => {
+                          setCapacityAgentActive(aiRow.name, !aiRow.active);
+                          toast.info(
+                            !aiRow.active
+                              ? "Care IA ativada no dimensionamento."
+                              : "Care IA desativada do dimensionamento.",
+                          );
+                        }}
+                        className={`px-2 py-0.5 text-[10px] rounded-full border transition-all ${
+                          aiRow.active
+                            ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500/40"
+                            : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                        }`}
+                        title="Clique para alternar entre ativo e inativo"
+                      >
+                        {aiRow.active ? "Ativa" : "Desativada"}
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-2 text-right">
                     <input
                       type="number"

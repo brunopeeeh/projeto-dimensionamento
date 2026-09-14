@@ -12,7 +12,7 @@ describe("buildCapacityAgents", () => {
     expect(result).toEqual([
       { name: "Agente Humano", mediaTri: 150 },
       { name: "Yooga Suporte", mediaTri: 0 },
-      { name: "Care IA", mediaTri: 0 },
+      { name: "Care IA", mediaTri: 0, active: true },
     ]);
   });
 
@@ -31,7 +31,7 @@ describe("buildCapacityAgents", () => {
 
     expect(result).toEqual([
       { name: "Yooga Suporte", mediaTri: 0 },
-      { name: "Care IA", mediaTri: 0 },
+      { name: "Care IA", mediaTri: 0, active: true },
     ]);
   });
 
@@ -44,7 +44,7 @@ describe("buildCapacityAgents", () => {
 
     expect(result).toEqual([
       { name: "Yooga Suporte", mediaTri: 0 },
-      { name: "Care IA", mediaTri: 0 },
+      { name: "Care IA", mediaTri: 0, active: true },
     ]);
   });
 });

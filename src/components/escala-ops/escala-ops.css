@@ -1,0 +1,2089 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+/* ============================= BASE ESCOPO ============================= */
+.escalaops-root {
+  --bg: #0b0e13;
+  --panel: #12161f;
+  --panel2: #171d29;
+  --panel3: #1d2534;
+  --line: #222b3c;
+  --line2: #2e3a52;
+  --text: #e9eef7;
+  --mut: #93a0b8;
+  --dim: #5b6880;
+  --acc: #3fd9b2;
+  --acc-ink: #062019;
+  --info: #5a9dff;
+  --ok: #4cc57e;
+  --warn: #e8c15a;
+  --bad: #ef5350;
+  --zero: #b3271f;
+  --closed: #39424f;
+  --now: #ff6b6b;
+  --hourW: 58px;
+  --labelW: 200px;
+  --fd: 'Space Grotesk', system-ui, sans-serif;
+  --fs: 'IBM Plex Sans', system-ui, sans-serif;
+  --fm: 'IBM Plex Mono', ui-monospace, monospace;
+
+  position: relative;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--fs);
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 85vh;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.escalaops-root.zen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border-radius: 0;
+  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
+  border: none;
+}
+
+.escalaops-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 420px at 10% -10%, rgba(63, 217, 178, 0.075), transparent 60%),
+    radial-gradient(820px 400px at 96% -4%, rgba(90, 157, 255, 0.06), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(148, 170, 200, 0.028) 0 1px, transparent 1px 76px),
+    repeating-linear-gradient(0deg, rgba(148, 170, 200, 0.022) 0 1px, transparent 1px 76px);
+}
+
+/* ============================= TEMA CLARO (LIGHT MODE) ============================= */
+.escalaops-root.theme-light {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel2: #f1f5f9;
+  --panel3: #e2e8f0;
+  --line: #e2e8f0;
+  --line2: #cbd5e1;
+  --text: #0f172a;
+  --mut: #475569;
+  --dim: #64748b;
+  --acc: #0d9488;
+  --acc-ink: #ffffff;
+  --info: #2563eb;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --bad: #dc2626;
+  --zero: #991b1b;
+  --closed: #e2e8f0;
+  --now: #ef4444;
+
+  border-color: var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+}
+
+.escalaops-root.theme-light::before {
+  background:
+    radial-gradient(900px 420px at 10% -10%, rgba(13, 148, 136, 0.06), transparent 60%),
+    radial-gradient(820px 400px at 96% -4%, rgba(37, 99, 235, 0.05), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(15, 23, 42, 0.025) 0 1px, transparent 1px 76px),
+    repeating-linear-gradient(0deg, rgba(15, 23, 42, 0.02) 0 1px, transparent 1px 76px);
+}
+
+.escalaops-root.theme-light .appbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom-color: var(--line);
+}
+
+.escalaops-root.theme-light .live-strip {
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.05), transparent);
+}
+
+.escalaops-root.theme-light .btn:hover {
+  border-color: #94a3b8;
+}
+
+.escalaops-root.theme-light .btn.acc {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #ffffff;
+}
+
+.escalaops-root.theme-light .btn.acc:hover {
+  filter: brightness(1.06);
+}
+
+.escalaops-root.theme-light .datenav .navbtn:hover,
+.escalaops-root.theme-light .iconbtn:hover {
+  border-color: #94a3b8;
+}
+
+.escalaops-root.theme-light .seg button.on {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 -2px 0 var(--acc);
+}
+
+.escalaops-root.theme-light .tl-head {
+  background: var(--panel);
+}
+
+.escalaops-root.theme-light .tl-head .tcell {
+  border-left-color: rgba(203, 213, 225, 0.7);
+}
+
+.escalaops-root.theme-light .tl-row {
+  border-bottom-color: rgba(226, 232, 240, 0.9);
+}
+
+.escalaops-root.theme-light .tl-row:hover {
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.escalaops-root.theme-light .tl-track {
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.escalaops-root.theme-light .tl-track .bar {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.escalaops-root.theme-light .closed-shade {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(100, 116, 139, 0.08) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+.escalaops-root.theme-light .wk .hd {
+  border-left-color: var(--line);
+}
+
+.escalaops-root.theme-light .wk .aname {
+  border-bottom-color: var(--line);
+}
+
+.escalaops-root.theme-light .wk .cell {
+  border-bottom-color: var(--line);
+  border-left-color: var(--line);
+}
+
+.escalaops-root.theme-light .wk .cell:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.escalaops-root.theme-light .ov {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.escalaops-root.theme-light .modal {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
+}
+
+.escalaops-root.theme-light .drawer {
+  box-shadow: -15px 0 45px rgba(0, 0, 0, 0.12);
+}
+
+.escalaops-root.theme-light .bell-pop {
+  background: var(--panel);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.14);
+}
+
+.escalaops-root.theme-light input:focus,
+.escalaops-root.theme-light select:focus,
+.escalaops-root.theme-light textarea:focus {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+}
+
+.escalaops-root.theme-light .daychips button.on {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.escalaops-root.theme-light .swatches .sw.on {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--acc);
+}
+
+.escalaops-root * {
+  box-sizing: border-box;
+}
+
+.escalaops-root button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.escalaops-root input,
+.escalaops-root select,
+.escalaops-root textarea {
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.escalaops-root input:focus,
+.escalaops-root select:focus,
+.escalaops-root textarea:focus {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px rgba(63, 217, 178, 0.18);
+}
+
+.escalaops-root .mono {
+  font-family: var(--fm);
+}
+
+.escalaops-root .micro {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+/* ============================= BOTÕES ============================= */
+.escalaops-root .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 9px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.escalaops-root .btn:hover {
+  background: var(--panel3);
+  border-color: #3b4a68;
+  transform: translateY(-1px);
+}
+
+.escalaops-root .btn:active {
+  transform: translateY(0);
+}
+
+.escalaops-root .btn.acc {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 600;
+}
+
+.escalaops-root .btn.acc:hover {
+  filter: brightness(1.08);
+}
+
+.escalaops-root .btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--mut);
+}
+
+.escalaops-root .btn.ghost:hover {
+  background: var(--panel2);
+  color: var(--text);
+}
+
+.escalaops-root .btn.danger {
+  color: #ff8f8b;
+  border-color: rgba(239, 83, 80, 0.4);
+}
+
+.escalaops-root .btn.danger:hover {
+  background: rgba(239, 83, 80, 0.12);
+}
+
+.escalaops-root .btn.sm {
+  padding: 4px 9px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+.escalaops-root .btn.on {
+  border-color: var(--acc);
+  color: var(--acc);
+  background: rgba(63, 217, 178, 0.08);
+}
+
+.escalaops-root .seg {
+  display: flex;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.escalaops-root .seg button {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mut);
+  transition: all 0.15s;
+}
+
+.escalaops-root .seg button:hover {
+  color: var(--text);
+}
+
+.escalaops-root .seg button.on {
+  background: var(--panel3);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--acc);
+}
+
+/* ============================= APPBAR ============================= */
+.escalaops-root .appbar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: rgba(11, 14, 19, 0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.escalaops-root.zen .appbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.escalaops-root .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.escalaops-root .brand .mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 18px rgba(63, 217, 178, 0.15);
+}
+
+.escalaops-root .brand h1 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.escalaops-root .brand h1 em {
+  font-style: normal;
+  color: var(--acc);
+}
+
+.escalaops-root .brand small {
+  display: block;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.escalaops-root .datenav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.escalaops-root .datenav .navbtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: var(--panel2);
+  color: var(--mut);
+  font-size: 15px;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s;
+}
+
+.escalaops-root .datenav .navbtn:hover {
+  color: var(--text);
+  border-color: #3b4a68;
+}
+
+.escalaops-root .datebox {
+  text-align: center;
+  min-width: 172px;
+  padding: 2px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s;
+}
+
+.escalaops-root .datebox:hover {
+  background: var(--panel2);
+}
+
+.escalaops-root .datebox b {
+  font-family: var(--fd);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.escalaops-root .datebox span {
+  display: block;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.escalaops-root .datebox input {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.escalaops-root .spacer {
+  flex: 1;
+}
+
+.escalaops-root .clock {
+  font-family: var(--fm);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.escalaops-root .clock .tick {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--acc);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(63, 217, 178, 0.5);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 5px rgba(63, 217, 178, 0);
+  }
+}
+
+.escalaops-root .iconbtn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--line2);
+  background: var(--panel2);
+  display: grid;
+  place-items: center;
+  color: var(--mut);
+  transition: all 0.15s;
+}
+
+.escalaops-root .iconbtn:hover {
+  color: var(--text);
+  border-color: #3b4a68;
+}
+
+.escalaops-root .badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 2px solid var(--bg);
+}
+
+.escalaops-root .badge.w {
+  background: var(--warn);
+  color: #241c04;
+}
+
+/* ============================= FAIXA AO VIVO ============================= */
+.escalaops-root .live-strip {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(63, 217, 178, 0.035), transparent);
+}
+
+.escalaops-root .ls-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.escalaops-root .ls-block b {
+  font-family: var(--fd);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.escalaops-root .ls-block b.acc {
+  color: var(--acc);
+}
+
+.escalaops-root .ls-block b.warn {
+  color: var(--warn);
+}
+
+.escalaops-root .ls-block span {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.escalaops-root .ls-div {
+  width: 1px;
+  height: 34px;
+  background: var(--line);
+}
+
+.escalaops-root .ls-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.escalaops-root .chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  max-width: 520px;
+}
+
+.escalaops-root .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 2.5px 10px 2.5px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: chipIn 0.3s ease both;
+}
+
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.escalaops-root .chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.escalaops-root .chip.pau {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.escalaops-root .chip.pau .dot {
+  background: transparent !important;
+  border: 2px solid var(--warn);
+  width: 7px;
+  height: 7px;
+}
+
+.escalaops-root .chip.ev {
+  font-family: var(--fm);
+  font-size: 11.5px;
+  color: var(--mut);
+}
+
+.escalaops-root .chip.ev b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.escalaops-root .chip.none {
+  color: var(--dim);
+  border-style: dashed;
+}
+
+.escalaops-root .empty-note {
+  font-size: 12px;
+  color: var(--dim);
+  font-style: italic;
+}
+
+/* ============================= LAYOUT ============================= */
+.escalaops-root main.ops-main {
+  position: relative;
+  z-index: 2;
+  padding: 18px 20px 80px;
+}
+
+.escalaops-root .vhead {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.escalaops-root .vhead h2 {
+  font-family: var(--fd);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.escalaops-root .vhead .sub {
+  font-size: 12.5px;
+  color: var(--mut);
+}
+
+.escalaops-root .vhead .stats {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.escalaops-root .mini-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.escalaops-root .mini-stat b {
+  font-family: var(--fd);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.escalaops-root .mini-stat span {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.escalaops-root .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+.escalaops-root .tag.today {
+  background: rgba(63, 217, 178, 0.14);
+  color: var(--acc);
+}
+
+.escalaops-root .tag.exc {
+  background: rgba(232, 193, 90, 0.14);
+  color: var(--warn);
+}
+
+.escalaops-root .tag.sim {
+  background: rgba(90, 157, 255, 0.15);
+  color: var(--info);
+  border: 1px dashed var(--info);
+}
+
+/* ============================= TIMELINE (DIA) ============================= */
+.escalaops-root .tl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.escalaops-root .stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 9px;
+  padding: 2px;
+}
+
+.escalaops-root .stepper button {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--mut);
+  font-size: 15px;
+  display: grid;
+  place-items: center;
+}
+
+.escalaops-root .stepper button:hover {
+  background: var(--panel3);
+  color: var(--text);
+}
+
+.escalaops-root .stepper b {
+  font-family: var(--fm);
+  font-size: 14px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.escalaops-root .stepper-lbl {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.escalaops-root .tl-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.escalaops-root .tl {
+  min-width: max-content;
+  position: relative;
+}
+
+.escalaops-root .tl-ruler {
+  display: grid;
+  grid-template-columns: var(--labelW) 1fr;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  background: var(--panel);
+  z-index: 6;
+}
+
+.escalaops-root.zen .tl-ruler {
+  position: sticky;
+  top: 55px;
+}
+
+.escalaops-root .tl-ruler .rlabel {
+  padding: 8px 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+  display: flex;
+  align-items: flex-end;
+  border-right: 1px solid var(--line);
+}
+
+.escalaops-root .ruler-track {
+  position: relative;
+  height: 38px;
+  width: calc(var(--hourW) * 21);
+}
+
+.escalaops-root .ruler-track .h {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0 5px 5px;
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--dim);
+  border-left: 1px solid var(--line);
+}
+
+.escalaops-root .ruler-track .h.mid {
+  color: var(--now);
+  border-left: 1px dashed rgba(255, 107, 107, 0.5);
+}
+
+.escalaops-root .ruler-track .h .d1 {
+  font-size: 8.5px;
+  color: var(--dim);
+  margin-left: 4px;
+  letter-spacing: 0.08em;
+}
+
+.escalaops-root .tl-row {
+  display: grid;
+  grid-template-columns: var(--labelW) 1fr;
+  border-bottom: 1px solid rgba(34, 43, 60, 0.55);
+  position: relative;
+  transition: background 0.12s;
+}
+
+.escalaops-root .tl-row:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.escalaops-root .tl-row.off {
+  opacity: 0.75;
+}
+
+.escalaops-root .tl-label {
+  padding: 9px 14px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.escalaops-root .tl-label .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 8px 0 currentColor;
+}
+
+.escalaops-root .tl-label .nm {
+  min-width: 0;
+}
+
+.escalaops-root .tl-label .nm b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.escalaops-root .tl-label .nm span {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--dim);
+}
+
+.escalaops-root .tl-label .mk {
+  font-size: 10px;
+  color: var(--warn);
+  margin-left: auto;
+  flex: none;
+}
+
+.escalaops-root .tl-label .mk.sim {
+  color: var(--info);
+}
+
+.escalaops-root .tl-track {
+  position: relative;
+  height: 46px;
+  width: calc(var(--hourW) * 21);
+  background-image: linear-gradient(90deg, rgba(46, 58, 82, 0.4) 1px, transparent 1px);
+  background-size: var(--hourW) 100%;
+}
+
+.escalaops-root .tl-track .midline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(255, 107, 107, 0.4);
+  z-index: 1;
+}
+
+.escalaops-root .bar {
+  position: absolute;
+  top: 9px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--c) 92%, #fff),
+    color-mix(in srgb, var(--c) 78%, #000)
+  );
+  border: 1px solid color-mix(in srgb, var(--c) 60%, #000);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: filter 0.12s, transform 0.12s;
+  animation: barIn 0.35s ease both;
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: scaleX(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.escalaops-root .bar:hover {
+  filter: brightness(1.13);
+  transform: translateY(-1px);
+}
+
+.escalaops-root .bar .t0,
+.escalaops-root .bar .t1 {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--fm);
+  font-size: 9.5px;
+  color: rgba(10, 14, 20, 0.75);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.escalaops-root .bar .t0 {
+  left: 5px;
+}
+
+.escalaops-root .bar .t1 {
+  right: 5px;
+}
+
+.escalaops-root .bar .pause {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: pointer;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(9, 12, 17, 0.9) 0 4px,
+    rgba(9, 12, 17, 0.62) 4px 8px
+  );
+  border-left: 1px solid rgba(0, 0, 0, 0.6);
+  border-right: 1px solid rgba(0, 0, 0, 0.6);
+}
+
+.escalaops-root .bar .externo {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: pointer;
+  background: #008AD4;
+  border-left: 1px solid rgba(0, 0, 0, 0.4);
+  border-right: 1px solid rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.25);
+  z-index: 1;
+}
+
+.escalaops-root .bar .externo .externo-lbl {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  padding: 0 3px;
+}
+
+.escalaops-root .bar.fromsim {
+  outline: 2px dashed var(--info);
+  outline-offset: 2px;
+}
+
+.escalaops-root .abs {
+  position: absolute;
+  top: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px dashed rgba(239, 83, 80, 0.55);
+  color: #ff8f8b;
+  background: rgba(239, 83, 80, 0.08);
+}
+
+.escalaops-root .abs.ferias {
+  border-color: rgba(90, 157, 255, 0.55);
+  color: #8fbcff;
+  background: rgba(90, 157, 255, 0.08);
+}
+
+.escalaops-root .folga-tag {
+  position: absolute;
+  top: 14px;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-style: italic;
+}
+
+.escalaops-root .closed-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(11, 14, 19, 0.55) 0 7px,
+    rgba(11, 14, 19, 0.35) 7px 14px
+  );
+}
+
+.escalaops-root .tl-divider {
+  display: grid;
+  grid-template-columns: var(--labelW) 1fr;
+  border-bottom: 1px solid rgba(34, 43, 60, 0.55);
+}
+
+.escalaops-root .tl-divider div {
+  padding: 5px 14px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 700;
+}
+
+.escalaops-root .covstrip-row {
+  display: grid;
+  grid-template-columns: var(--labelW) 1fr;
+  background: rgba(11, 14, 19, 0.35);
+}
+
+.escalaops-root .covstrip-row .lbl {
+  padding: 8px 14px;
+  border-right: 1px solid var(--line);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.escalaops-root .covstrip {
+  position: relative;
+  height: 34px;
+  width: calc(var(--hourW) * 21);
+  cursor: pointer;
+}
+
+.escalaops-root .covcell {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--fm);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(8, 11, 16, 0.85);
+  transition: filter 0.12s;
+}
+
+.escalaops-root .covcell:hover {
+  filter: brightness(1.2);
+}
+
+.escalaops-root .covcell.ok {
+  background: var(--ok);
+}
+
+.escalaops-root .covcell.edge {
+  background: var(--warn);
+}
+
+.escalaops-root .covcell.low {
+  background: var(--bad);
+  color: #fff;
+}
+
+.escalaops-root .covcell.zero {
+  background: var(--zero);
+  color: #ffd7d5;
+}
+
+.escalaops-root .covcell.closed {
+  background: var(--closed);
+  color: #8b96a8;
+}
+
+.escalaops-root .nowline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--now);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.escalaops-root .nowline::before {
+  content: 'agora';
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-family: var(--fm);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--now);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+}
+
+.escalaops-root .nowline::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--now);
+  box-shadow: 0 0 10px var(--now);
+}
+
+.escalaops-root .legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--mut);
+  align-items: center;
+}
+
+.escalaops-root .legend i {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.escalaops-root .hint {
+  font-size: 11.5px;
+  color: var(--dim);
+  margin-top: 8px;
+}
+
+/* sugestões */
+.escalaops-root .sugg {
+  margin-top: 18px;
+  border: 1px solid rgba(232, 193, 90, 0.3);
+  border-radius: 12px;
+  background: rgba(232, 193, 90, 0.05);
+  overflow: hidden;
+}
+
+.escalaops-root .sugg header {
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(232, 193, 90, 0.2);
+}
+
+.escalaops-root .sugg header b {
+  font-family: var(--fd);
+  font-size: 14px;
+}
+
+.escalaops-root .sugg header .glyph {
+  color: var(--warn);
+}
+
+.escalaops-root .sugg .item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(232, 193, 90, 0.12);
+  flex-wrap: wrap;
+}
+
+.escalaops-root .sugg .item:last-child {
+  border-bottom: none;
+}
+
+.escalaops-root .sugg .item p {
+  flex: 1;
+  min-width: 260px;
+  font-size: 13px;
+}
+
+.escalaops-root .sugg .item .mono {
+  color: var(--warn);
+}
+
+/* ============================= SEMANA ============================= */
+.escalaops-root .wk-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.escalaops-root .wk {
+  display: grid;
+  grid-template-columns: var(--labelW) repeat(7, minmax(112px, 1fr));
+  min-width: 980px;
+}
+
+.escalaops-root .wk .hd {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid rgba(34, 43, 60, 0.5);
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.escalaops-root .wk .hd:hover {
+  background: var(--panel2);
+}
+
+.escalaops-root .wk .hd b {
+  font-family: var(--fd);
+  font-size: 14px;
+  display: block;
+}
+
+.escalaops-root .wk .hd span {
+  font-size: 10.5px;
+  color: var(--dim);
+}
+
+.escalaops-root .wk .hd .cnt {
+  display: inline-block;
+  margin-top: 3px;
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--acc);
+  background: rgba(63, 217, 178, 0.1);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+
+.escalaops-root .wk .hd.tcol {
+  background: rgba(63, 217, 178, 0.05);
+  box-shadow: inset 0 2px 0 var(--acc);
+}
+
+.escalaops-root .wk .corner {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 700;
+  display: flex;
+  align-items: flex-end;
+}
+
+.escalaops-root .wk .aname {
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(34, 43, 60, 0.55);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.escalaops-root .wk .aname .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.escalaops-root .wk .cell {
+  border-bottom: 1px solid rgba(34, 43, 60, 0.55);
+  border-left: 1px solid rgba(34, 43, 60, 0.5);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s;
+  min-height: 46px;
+}
+
+.escalaops-root .wk .cell:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.escalaops-root .wk .cell.tcol {
+  background: rgba(63, 217, 178, 0.035);
+}
+
+.escalaops-root .wshift {
+  font-family: var(--fm);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-left: 3px solid var(--c);
+  white-space: nowrap;
+}
+
+.escalaops-root .wshift.hasexc {
+  box-shadow: 0 0 0 1px var(--warn);
+}
+
+.escalaops-root .wshift.fromsim {
+  outline: 1.5px dashed var(--info);
+  outline-offset: 1px;
+}
+
+.escalaops-root .wfolga {
+  font-size: 11px;
+  color: var(--dim);
+  font-style: italic;
+}
+
+.escalaops-root .wabs {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 5px;
+  color: #ff8f8b;
+  border: 1px dashed rgba(239, 83, 80, 0.5);
+  background: rgba(239, 83, 80, 0.08);
+}
+
+.escalaops-root .wabs.ferias {
+  color: #8fbcff;
+  border-color: rgba(90, 157, 255, 0.5);
+  background: rgba(90, 157, 255, 0.08);
+}
+
+/* ============================= COBERTURA ============================= */
+.escalaops-root .cov-panel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.escalaops-root .cov-chart-wrap {
+  overflow-x: auto;
+}
+
+.escalaops-root .cov-chart-wrap svg {
+  display: block;
+}
+
+.escalaops-root .cov-critical {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.escalaops-root .crit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 83, 80, 0.07);
+  border: 1px solid rgba(239, 83, 80, 0.25);
+}
+
+.escalaops-root .crit-item.zero {
+  background: rgba(179, 39, 31, 0.14);
+}
+
+.escalaops-root .crit-item b {
+  font-family: var(--fm);
+}
+
+.escalaops-root .crit-ok {
+  font-size: 13px;
+  color: var(--ok);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.escalaops-root .sim-delta {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--info);
+  border-radius: 10px;
+  background: rgba(90, 157, 255, 0.06);
+  font-size: 13px;
+}
+
+.escalaops-root .sim-delta b {
+  font-family: var(--fm);
+}
+
+/* ============================= POPUPS / MODAIS ============================= */
+.escalaops-root .bell-pop {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  width: 400px;
+  max-width: calc(100vw - 24px);
+  z-index: 80;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: viewIn 0.18s ease both;
+}
+
+.escalaops-root .bell-pop header {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.escalaops-root .bell-pop header b {
+  font-family: var(--fd);
+}
+
+.escalaops-root .alert-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(34, 43, 60, 0.5);
+  font-size: 12.5px;
+  align-items: flex-start;
+}
+
+.escalaops-root .alert-item:last-child {
+  border-bottom: none;
+}
+
+.escalaops-root .alert-item .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 4px;
+}
+
+.escalaops-root .alert-item.c .dot {
+  background: var(--bad);
+  box-shadow: 0 0 8px var(--bad);
+}
+
+.escalaops-root .alert-item.w .dot {
+  background: var(--warn);
+}
+
+.escalaops-root .alert-item.i .dot {
+  background: var(--info);
+}
+
+.escalaops-root .alert-item time {
+  margin-left: auto;
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--dim);
+  flex: none;
+}
+
+.escalaops-root .bell-empty {
+  padding: 26px;
+  text-align: center;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+.escalaops-root .ov {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(6, 8, 12, 0.66);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.15s ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.escalaops-root .modal {
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  width: 520px;
+  max-width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  animation: popIn 0.18s ease both;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.escalaops-root .modal .mhead {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.escalaops-root .modal .mhead h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.escalaops-root .modal .mhead .sub {
+  font-size: 12px;
+  color: var(--mut);
+  margin-top: 2px;
+}
+
+.escalaops-root .modal .mhead .x {
+  margin-left: auto;
+}
+
+.escalaops-root .modal .mbody {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.escalaops-root .modal .mfoot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.escalaops-root .modal .mfoot .spacer {
+  flex: 1;
+}
+
+.escalaops-root .field label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.escalaops-root .field select,
+.escalaops-root .field input[type='text'],
+.escalaops-root .field textarea {
+  width: 100%;
+}
+
+.escalaops-root .frow {
+  display: flex;
+  gap: 10px;
+}
+
+.escalaops-root .frow .field {
+  flex: 1;
+}
+
+.escalaops-root .radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.escalaops-root .radios label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.13s;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  font-weight: 500;
+  margin: 0;
+}
+
+.escalaops-root .radios label:hover {
+  border-color: #3b4a68;
+}
+
+.escalaops-root .radios label.on {
+  border-color: var(--acc);
+  background: rgba(63, 217, 178, 0.1);
+  color: var(--acc);
+}
+
+.escalaops-root .radios label.danger.on {
+  border-color: var(--bad);
+  background: rgba(239, 83, 80, 0.1);
+  color: #ff8f8b;
+}
+
+.escalaops-root .daychips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.escalaops-root .daychips button {
+  width: 40px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: var(--panel2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dim);
+  transition: all 0.13s;
+}
+
+.escalaops-root .daychips button.on {
+  background: rgba(63, 217, 178, 0.14);
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.escalaops-root .swatches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.escalaops-root .swatches .sw {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.12s;
+}
+
+.escalaops-root .swatches .sw:hover {
+  transform: scale(1.12);
+}
+
+.escalaops-root .swatches .sw.on {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--acc);
+}
+
+.escalaops-root .err {
+  color: #ff8f8b;
+  font-size: 12px;
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 8px;
+  padding: 8px 11px;
+}
+
+.escalaops-root .info-strip {
+  font-size: 12px;
+  color: var(--mut);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.escalaops-root .info-strip .mono {
+  color: var(--text);
+}
+
+/* drawer */
+.escalaops-root .ov.drawerov {
+  justify-content: flex-end;
+  padding: 0;
+  align-items: stretch;
+}
+
+.escalaops-root .drawer {
+  width: 430px;
+  max-width: 96vw;
+  background: var(--panel);
+  border-left: 1px solid var(--line2);
+  height: 100%;
+  overflow-y: auto;
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.45);
+  animation: drIn 0.2s ease both;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes drIn {
+  from {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.escalaops-root .drawer .dhead {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 2;
+}
+
+.escalaops-root .drawer .dhead h3 {
+  font-family: var(--fd);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.escalaops-root .drawer .dhead .x {
+  margin-left: auto;
+}
+
+.escalaops-root .drawer .dbody {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.escalaops-root .agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  transition: border-color 0.13s;
+}
+
+.escalaops-root .agent-row:hover {
+  border-color: var(--line2);
+}
+
+.escalaops-root .agent-row .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.escalaops-root .agent-row .ainfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.escalaops-root .agent-row .ainfo b {
+  display: block;
+  font-size: 13.5px;
+}
+
+.escalaops-root .agent-row .ainfo span {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: var(--dim);
+  display: block;
+}
+
+.escalaops-root .agent-row .ainfo .wd {
+  font-family: var(--fs);
+  color: var(--mut);
+  font-size: 11px;
+}
+
+.escalaops-root .mrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(34, 43, 60, 0.5);
+}
+
+.escalaops-root .mrow .k {
+  font-size: 13px;
+}
+
+.escalaops-root .mrow .d {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.escalaops-root kbd {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  background: var(--panel3);
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* banner simulação */
+.escalaops-root .sim-banner {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  background: var(--panel);
+  border: 1.5px dashed var(--info);
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 94%;
+  animation: viewIn 0.2s ease both;
+}
+
+.escalaops-root .sim-banner .t {
+  font-size: 13px;
+}
+
+.escalaops-root .sim-banner .t b {
+  color: var(--info);
+}
+
+/* toasts */
+.escalaops-root .toasts {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.escalaops-root .toast {
+  background: var(--panel3);
+  border: 1px solid var(--line2);
+  border-left: 3px solid var(--acc);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  animation: toastIn 0.22s ease both;
+  max-width: 380px;
+}
+
+.escalaops-root .toast.warn {
+  border-left-color: var(--warn);
+}
+
+.escalaops-root .toast.err {
+  border-left-color: var(--bad);
+}
+
+.escalaops-root .toast button {
+  color: var(--acc);
+  font-weight: 700;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* tooltip */
+.escalaops-root .ops-tip {
+  position: fixed;
+  z-index: 130;
+  background: #0d1119;
+  border: 1px solid var(--line2);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  max-width: 280px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  line-height: 1.5;
+}
+
+.escalaops-root .ops-tip b {
+  font-family: var(--fd);
+}
+
+.escalaops-root .ops-tip .mono {
+  font-size: 11px;
+  color: var(--mut);
+}
+
+/* zen */
+.escalaops-root.zen .appbar > *:not(.brand):not(.datenav):not(.clock),
+.escalaops-root.zen .live-strip,
+.escalaops-root.zen .tl-toolbar,
+.escalaops-root.zen .sugg,
+.escalaops-root.zen .vhead .stats,
+.escalaops-root.zen .hint,
+.escalaops-root.zen .legend {
+  display: none !important;
+}
+
+.escalaops-root.zen .zen-exit-btn {
+  display: inline-flex !important;
+}
+
+.escalaops-root.zen main.ops-main {
+  padding-top: 8px;
+}
+
+.escalaops-root.zen .vhead h2 {
+  font-size: 38px;
+}
+
+@media (max-width: 900px) {
+  .escalaops-root {
+    --labelW: 150px;
+  }
+  .escalaops-root .ls-div {
+    display: none;
+  }
+  .escalaops-root .live-strip {
+    gap: 14px;
+  }
+  .escalaops-root .vhead h2 {
+    font-size: 24px;
+  }
+}

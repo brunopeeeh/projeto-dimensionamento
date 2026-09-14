@@ -69,3 +69,23 @@ README_MIGRATIONS.md
 .gemini/
 graphify-out/
 .graphifyignore
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.parquet
+
+# Storage raw & cache data
+storage/raw/
+storage/processed/*
+!storage/processed/.gitkeep
+storage/exports/*
+!storage/exports/.gitkeep
+
+# Temporary files
+tmp/
+*.tmp
+escala.html
+
+

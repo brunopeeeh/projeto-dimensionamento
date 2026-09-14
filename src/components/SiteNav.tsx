@@ -113,7 +113,7 @@ export function SiteNav({ onOpenMobile }: SiteNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur-md">
         <div className="flex h-[61px] items-center px-4 w-full">
           <button
             onClick={onOpenMobile}
@@ -185,7 +185,6 @@ export function SiteNav({ onOpenMobile }: SiteNavProps) {
             {!isLoading && saveStatus !== "idle" && <SaveIndicator status={saveStatus} />}
           </div>
 
-          {/* Espaço para ações globais futuras (Perfil, Notificações, etc) podem entrar aqui do lado direito */}
           <div className="flex-1" />
         </div>
       </header>

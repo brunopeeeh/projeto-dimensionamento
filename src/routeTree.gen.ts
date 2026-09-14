@@ -9,7 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SimuladorRouteImport } from './routes/simulador'
+import { Route as TiraDuvidasRouteImport } from './routes/tira-duvidas'
 import { Route as PrevisaoEscalaRouteImport } from './routes/previsao-escala'
 import { Route as PainelRouteImport } from './routes/painel'
 import { Route as HelpdeskRouteImport } from './routes/helpdesk'
@@ -19,11 +19,11 @@ import { Route as CapacidadeRouteImport } from './routes/capacidade'
 import { Route as CalculadoraAnualRouteImport } from './routes/calculadora-anual'
 import { Route as IndexRouteImport } from './routes/index'
 
-const SimuladorRoute = SimuladorRouteImport.update({
-  id: '/simulador',
-  path: '/simulador',
+const TiraDuvidasRoute = TiraDuvidasRouteImport.update({
+  id: '/tira-duvidas',
+  path: '/tira-duvidas',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/simulador.lazy').then((d) => d.Route))
+} as any).lazy(() => import('./routes/tira-duvidas.lazy').then((d) => d.Route))
 const PrevisaoEscalaRoute = PrevisaoEscalaRouteImport.update({
   id: '/previsao-escala',
   path: '/previsao-escala',
@@ -78,7 +78,7 @@ export interface FileRoutesByFullPath {
   '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
-  '/simulador': typeof SimuladorRoute
+  '/tira-duvidas': typeof TiraDuvidasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,7 +89,7 @@ export interface FileRoutesByTo {
   '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
-  '/simulador': typeof SimuladorRoute
+  '/tira-duvidas': typeof TiraDuvidasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,7 +101,7 @@ export interface FileRoutesById {
   '/helpdesk': typeof HelpdeskRoute
   '/painel': typeof PainelRoute
   '/previsao-escala': typeof PrevisaoEscalaRoute
-  '/simulador': typeof SimuladorRoute
+  '/tira-duvidas': typeof TiraDuvidasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -114,7 +114,7 @@ export interface FileRouteTypes {
     | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
-    | '/simulador'
+    | '/tira-duvidas'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -125,7 +125,7 @@ export interface FileRouteTypes {
     | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
-    | '/simulador'
+    | '/tira-duvidas'
   id:
     | '__root__'
     | '/'
@@ -136,7 +136,7 @@ export interface FileRouteTypes {
     | '/helpdesk'
     | '/painel'
     | '/previsao-escala'
-    | '/simulador'
+    | '/tira-duvidas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -148,16 +148,16 @@ export interface RootRouteChildren {
   HelpdeskRoute: typeof HelpdeskRoute
   PainelRoute: typeof PainelRoute
   PrevisaoEscalaRoute: typeof PrevisaoEscalaRoute
-  SimuladorRoute: typeof SimuladorRoute
+  TiraDuvidasRoute: typeof TiraDuvidasRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/simulador': {
-      id: '/simulador'
-      path: '/simulador'
-      fullPath: '/simulador'
-      preLoaderRoute: typeof SimuladorRouteImport
+    '/tira-duvidas': {
+      id: '/tira-duvidas'
+      path: '/tira-duvidas'
+      fullPath: '/tira-duvidas'
+      preLoaderRoute: typeof TiraDuvidasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/previsao-escala': {
@@ -228,7 +228,7 @@ const rootRouteChildren: RootRouteChildren = {
   HelpdeskRoute: HelpdeskRoute,
   PainelRoute: PainelRoute,
   PrevisaoEscalaRoute: PrevisaoEscalaRoute,
-  SimuladorRoute: SimuladorRoute,
+  TiraDuvidasRoute: TiraDuvidasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -32,3 +32,15 @@ export function hasValidApiKey(request: Request): boolean {
   if (!expected) return false;
   return request.headers.get("x-api-key") === expected;
 }
+
+/**
+ * Requisição server-to-server (sem `Origin`) que não apresenta a chave.
+ *
+ * O browser envia `Origin` em POST (inclusive same-origin), então a UI continua
+ * passando por `isCrossSite`. Já curl/n8n/scripts sem `Origin` precisam do
+ * `x-api-key` para tocar as rotas pagas (AI/Freshchat/HubSpot) — senão vira
+ * porta aberta para queimar tokens e escrever no Supabase via service role.
+ */
+export function isUnkeyedNonBrowserRequest(request: Request): boolean {
+  return !request.headers.get("origin") && !hasValidApiKey(request);
+}

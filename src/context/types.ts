@@ -32,6 +32,7 @@ export type NewAgentHire = {
 export type CapacityAgent = {
   name: string;
   mediaTri: number;
+  active?: boolean;
 };
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -114,7 +115,8 @@ export type DimensionamentoState = {
   updateTeamAgentName: (agentId: string, name: string) => void;
   setNewHires: React.Dispatch<React.SetStateAction<NewAgentHire[]>>;
   updateScenario: (key: keyof ScenarioParams, value: number) => void;
-  updateCapacityAgent: (name: string, value: number) => void;
+  updateCapacityAgent: (name: string, value: number, active?: boolean) => void;
+  setCapacityAgentActive: (name: string, active: boolean) => void;
   resetAll: () => void;
   isResetConfirmOpen: boolean;
   setIsResetConfirmOpen: (val: boolean) => void;

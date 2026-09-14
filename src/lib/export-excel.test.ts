@@ -37,10 +37,6 @@ const mockData: ExportDimensionamentoData = {
       mediaTri: 3000,
     },
     {
-      name: "Care AI",
-      mediaTri: 5000,
-    },
-    {
       name: "Yooga Suporte",
       mediaTri: 2880,
     },
@@ -83,10 +79,11 @@ describe("export-excel", () => {
     const resDiaCell = row2.getCell(4).value as { formula: string };
     expect(resDiaCell.formula).toBe("C2/20");
 
-    const careIaRow = wsCap.getRow(3);
-    expect(careIaRow.getCell(4).value).toMatchObject({ formula: "C3/30" });
-    expect(careIaRow.getCell(5).value).toMatchObject({ formula: "D3/24" });
-    expect(careIaRow.getCell(7).value).toMatchObject({ result: 5000 / 3 / 30 / 24 / 6 });
+    const yoogaSuporteRow = wsCap.getRow(3);
+    expect(yoogaSuporteRow.getCell(1).value).toBe("Yooga Suporte");
+    expect(yoogaSuporteRow.getCell(4).value).toMatchObject({ formula: "C3/20" });
+    expect(yoogaSuporteRow.getCell(5).value).toMatchObject({ formula: "D3/8" });
+    expect(yoogaSuporteRow.getCell(7).value).toMatchObject({ result: 2880 / 3 / 20 / 8 / 6 });
   });
 
   it("adds formula cells in Helpdesk sheet", async () => {
@@ -97,7 +94,7 @@ describe("export-excel", () => {
     // Col 1 is Hora
     expect(row2.getCell(1).value).toBe("08:00");
 
-    // Fator 2 já contém os volumes de humanos, Yooga e Care IA. A capacidade
+    // Fator 2 já contém os volumes de humanos e Yooga Suporte. A capacidade
     // da faixa multiplica somente o único humano online na escala.
     expect(row2.getCell(11).value).toBe(2);
 

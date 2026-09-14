@@ -9,7 +9,8 @@ import type { FreshchatSyncResult } from "./lib/api/freshchat.server";
 import { runAiSuggestion } from "./lib/api/ai-agent.server";
 import type { AiSuggestionRequest, AiSuggestionResponse } from "./lib/api/ai-agent.server";
 import { runMathSuggestion } from "./lib/optimization/solver";
-import { hasValidApiKey, isCrossSite } from "./lib/api-guards";
+import { hasValidApiKey, isCrossSite, isUnkeyedNonBrowserRequest } from "./lib/api-guards";
+import { getHubspot10MinVolume, listExportedVolumes } from "./lib/api/hubspot-volume.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -63,6 +64,15 @@ async function handleApiRoutes(request: Request): Promise<Response | null> {
         status: 403,
         headers: API_HEADERS,
       });
+    }
+
+    // Requisições sem `Origin` (curl, scripts, n8n mal configurado) precisam da
+    // chave, senão queimam tokens pagos e escrevem no Supabase via service role.
+    if (request.method !== "OPTIONS" && isUnkeyedNonBrowserRequest(request)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Não autorizado: x-api-key ausente ou inválida." }),
+        { status: 401, headers: API_HEADERS },
+      );
     }
 
     // /api/sync-capacity só é chamada pelo n8n (a UI usa /api/sync-from-freshchat,
@@ -154,6 +164,80 @@ async function handleApiRoutes(request: Request): Promise<Response | null> {
         error: message,
       };
       return new Response(JSON.stringify(errorBody), {
+        status: 500,
+        headers: API_HEADERS,
+      });
+    }
+  }
+
+  // GET /api/hubspot-volume-files — lista arquivos exportados disponíveis em storage/exports/
+  if (url.pathname === "/api/hubspot-volume-files") {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: API_HEADERS });
+    }
+
+    try {
+      const files = listExportedVolumes();
+      return new Response(JSON.stringify({ success: true, files }), {
+        status: 200,
+        headers: API_HEADERS,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao listar arquivos.";
+      return new Response(JSON.stringify({ success: false, error: message, files: [] }), {
+        status: 500,
+        headers: API_HEADERS,
+      });
+    }
+  }
+
+  // POST /api/hubspot-volume — busca tickets do HubSpot e gera médias por faixas de 10 minutos
+  if (url.pathname === "/api/hubspot-volume") {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: API_HEADERS });
+    }
+
+    if (request.method !== "POST") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Method not allowed. Use POST." }),
+        { status: 405, headers: API_HEADERS },
+      );
+    }
+
+    try {
+      const body = (await request.json()) as {
+        startDate?: string;
+        endDate?: string;
+        divisor?: number;
+        fileName?: string;
+        forceApi?: boolean;
+      };
+
+      if (!body.startDate || !body.endDate) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Parâmetros 'startDate' e 'endDate' (YYYY-MM-DD) são obrigatórios.",
+          }),
+          { status: 400, headers: API_HEADERS },
+        );
+      }
+
+      const result = await getHubspot10MinVolume({
+        startDate: body.startDate,
+        endDate: body.endDate,
+        divisor: body.divisor,
+        fileName: body.fileName,
+        forceApi: body.forceApi,
+      });
+
+      return new Response(JSON.stringify(result), {
+        status: result.success ? 200 : 500,
+        headers: API_HEADERS,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao processar requisição.";
+      return new Response(JSON.stringify({ success: false, error: message }), {
         status: 500,
         headers: API_HEADERS,
       });

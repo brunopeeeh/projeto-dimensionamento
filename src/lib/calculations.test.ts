@@ -236,7 +236,7 @@ describe("computeGridCalculations", () => {
 });
 
 describe("computeDynamicTmaFactors", () => {
-  it("reproduz 0,79 com 6 humanos + Yooga no divisor e Care IA só no volume", () => {
+  it("reproduz 0,63 com 6 humanos + Yooga no divisor (sem Care IA)", () => {
     const days: Day[] = ["Terça"];
     const names = ["Lucas", "Julio", "Sabrina", "Maria Luiza", "Jhorran", "Igor"];
     const mediaTri = [884, 1676, 2869, 2510, 1206, 786];
@@ -247,19 +247,76 @@ describe("computeDynamicTmaFactors", () => {
     const capacityAgents: CapacityAgent[] = [
       ...mediaTri.map((volume, index) => ({ name: names[index], mediaTri: volume })),
       { name: "Yooga Suporte", mediaTri: 2880 }, // 1 por bloco; entra no divisor
-      { name: "Care IA", mediaTri: 14696 }, // 1,134 por bloco; não entra no divisor
     ];
 
     const factors = computeDynamicTmaFactors(days, teamAgents, capacityAgents);
 
-    expect(factors["Terça"]).toBe(0.79);
+    expect(factors["Terça"]).toBe(0.63);
+  });
+
+  it("calcula com Care IA como humano no volume (sem somar no divisor)", () => {
+    const days: Day[] = ["Terça"];
+    const names = ["Lucas", "Julio", "Sabrina", "Maria Luiza", "Jhorran", "Igor"];
+    const mediaTri = [884, 1676, 2869, 2510, 1206, 786];
+    const teamAgents = names.map((name, index) => ({
+      ...agent(String(index + 1), "10:00", "Terça"),
+      name,
+    }));
+    const capacityAgents: CapacityAgent[] = [
+      ...mediaTri.map((volume, index) => ({ name: names[index], mediaTri: volume })),
+      { name: "Yooga Suporte", mediaTri: 2880 },
+      { name: "Care IA", mediaTri: 14696, active: true },
+    ];
+
+    const factors = computeDynamicTmaFactors(days, teamAgents, capacityAgents);
+
+    // (3.448 + 1 + 5.102) / 7 = 9.55 / 7 = 1.36
+    expect(factors["Terça"]).toBe(1.36);
+  });
+
+  it("reproduz 0,63 quando Care IA está com volume zerado", () => {
+    const days: Day[] = ["Terça"];
+    const names = ["Lucas", "Julio", "Sabrina", "Maria Luiza", "Jhorran", "Igor"];
+    const mediaTri = [884, 1676, 2869, 2510, 1206, 786];
+    const teamAgents = names.map((name, index) => ({
+      ...agent(String(index + 1), "10:00", "Terça"),
+      name,
+    }));
+    const capacityAgents: CapacityAgent[] = [
+      ...mediaTri.map((volume, index) => ({ name: names[index], mediaTri: volume })),
+      { name: "Yooga Suporte", mediaTri: 2880 },
+      { name: "Care IA", mediaTri: 0, active: true },
+    ];
+
+    const factors = computeDynamicTmaFactors(days, teamAgents, capacityAgents);
+
+    expect(factors["Terça"]).toBe(0.63);
+  });
+
+  it("reproduz 0,63 quando Care IA está desativada (active: false)", () => {
+    const days: Day[] = ["Terça"];
+    const names = ["Lucas", "Julio", "Sabrina", "Maria Luiza", "Jhorran", "Igor"];
+    const mediaTri = [884, 1676, 2869, 2510, 1206, 786];
+    const teamAgents = names.map((name, index) => ({
+      ...agent(String(index + 1), "10:00", "Terça"),
+      name,
+    }));
+    const capacityAgents: CapacityAgent[] = [
+      ...mediaTri.map((volume, index) => ({ name: names[index], mediaTri: volume })),
+      { name: "Yooga Suporte", mediaTri: 2880 },
+      { name: "Care IA", mediaTri: 14696, active: false },
+    ];
+
+    const factors = computeDynamicTmaFactors(days, teamAgents, capacityAgents);
+
+    expect(factors["Terça"]).toBe(0.63);
   });
 });
 
 describe("computeCapacityContributions", () => {
-  it("normaliza a IA por 24/7 e o Suporte por jornada humana", () => {
+  it("normaliza a IA e o Suporte pela jornada humana de 20 dias e 8h", () => {
     const capacityAgents: CapacityAgent[] = [
-      { name: "Care AI", mediaTri: 12960 }, // 12960/3/30/24/6 = 1/10min
+      { name: "Care IA", mediaTri: 2880, active: true }, // 2880/3/20/8/6 = 1/10min
       { name: "Yooga Suporte", mediaTri: 2880 }, // 2880/3/20/8/6 = 1/10min
     ];
 
@@ -268,6 +325,18 @@ describe("computeCapacityContributions", () => {
     expect(rates.ai).toBeCloseTo(1, 5);
     expect(rates.support).toBeCloseTo(1, 5);
     expect(rates.supportSeats).toBe(1);
+  });
+
+  it("zera contribuição da IA quando active é false", () => {
+    const capacityAgents: CapacityAgent[] = [
+      { name: "Care IA", mediaTri: 2880, active: false },
+      { name: "Yooga Suporte", mediaTri: 2880 },
+    ];
+
+    const rates = computeCapacityContributions(capacityAgents);
+
+    expect(rates.ai).toBe(0);
+    expect(rates.support).toBeCloseTo(1, 5);
   });
 
   it("zera quando IA/Suporte ausentes", () => {

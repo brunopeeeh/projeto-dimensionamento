@@ -1,4 +1,10 @@
-import { matchAgentName, isAiAgent, isSupportAgent } from "@/lib/agents";
+import {
+  findAiAgent,
+  findSupportAgent,
+  matchAgentName,
+  isAiAgent,
+  isSupportAgent,
+} from "@/lib/agents";
 import { toBlock20, isTimeInShift, getLunchEndTime } from "@/lib/time";
 import {
   FIXED_OVERNIGHT_AGENTS,
@@ -13,8 +19,6 @@ import {
   BLOCKS_10MIN_PER_HOUR,
   DAYS_PER_WEEK,
   DEFAULT_SIMULTANEOUS_HELPDESK,
-  AI_DAYS_PER_MONTH,
-  AI_HOURS_PER_DAY,
 } from "@/lib/constants";
 import type { Day, TeamAgent, NewAgentHire, CapacityAgent, RowCalculation } from "@/context/types";
 
@@ -93,19 +97,21 @@ function isAgentScheduledOnDay(agent: TeamAgent, day: Day): boolean {
 export type CapacityContributions = { ai: number; support: number; supportSeats: number };
 
 /**
- * Contribuições por bloco usadas no Capacity médio. A Care IA entra no volume
- * resolvido, mas não no divisor de pessoas. O Yooga Suporte representa uma
- * posição agregada (supervisores + N2), então entra no volume e soma 1 ao divisor.
+ * Contribuições por bloco usadas no Capacity médio.
+ * - A Care IA calcula como um humano (20 dias e 8h diárias, base deriveResolvidos10).
+ *   Quando ativa (active !== false) e com mediaTri > 0, soma ao volume resolvido sem
+ *   adicionar assento ao divisor. Se inativa ou zerada, contribui com 0.
+ * - O Yooga Suporte representa uma posição agregada (supervisores + N2), então
+ *   entra no volume e soma 1 ao divisor.
  */
 export function computeCapacityContributions(
   capacityAgents: CapacityAgent[],
 ): CapacityContributions {
-  const ai = capacityAgents.find((ca) => isAiAgent(ca.name));
-  const support = capacityAgents.find((ca) => isSupportAgent(ca.name));
+  const ai = findAiAgent(capacityAgents);
+  const support = findSupportAgent(capacityAgents);
 
-  const aiBlocksPerQuarter =
-    MONTHS_PER_QUARTER * AI_DAYS_PER_MONTH * AI_HOURS_PER_DAY * BLOCKS_10MIN_PER_HOUR;
-  const aiRate = ai ? ai.mediaTri / aiBlocksPerQuarter : 0;
+  const isAiActive = ai?.active !== false;
+  const aiRate = ai && isAiActive ? deriveResolvidos10(ai.mediaTri) : 0;
   const supportRate = support ? deriveResolvidos10(support.mediaTri) : 0;
 
   return { ai: aiRate, support: supportRate, supportSeats: support ? 1 : 0 };
@@ -118,7 +124,7 @@ export function computeAverageCapacity(totalResolved: number, operationalSeats: 
 
 /**
  * Capacity médio por dia em blocos de 10min:
- * (volume dos humanos + Yooga Suporte + Care IA) / (humanos + 1 Yooga Suporte).
+ * (volume dos humanos + Yooga Suporte + Care IA [se ativa]) / (humanos + 1 Yooga Suporte).
  * A Care IA nunca soma uma posição ao divisor.
  */
 export function computeDynamicTmaFactors(
@@ -200,7 +206,7 @@ export function computeGridCalculations(params: {
     newHires,
   } = params;
 
-  // O fator diário já contém os volumes de Care IA e Yooga Suporte. Na grade,
+  // O fator diário já contém o volume de Yooga Suporte. Na grade,
   // contam somente humanos com status "trabalhando" na faixa da escala.
   const humanTeamAgents = teamAgents.filter(
     (agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name),

@@ -1,10 +1,11 @@
 import React, { useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDimensionamento, DAYS, Day } from "@/context/DimensionamentoContext";
-import { RotateCcw, Upload, FileSpreadsheet } from "lucide-react";
+import { RotateCcw, Upload, FileSpreadsheet, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
 import { parseHubspotLongFormat } from "@/lib/volume-import";
+import { HubspotVolumeModal } from "./HubspotVolumeModal";
 
 const TimeGridChart = lazy(() =>
   import("./TimeGridChart").then((module) => ({ default: module.TimeGridChart })),
@@ -40,6 +41,7 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
   const [chartDay, setChartDay] = useState<Day>("Segunda");
   const [isUploading, setIsUploading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isHubspotModalOpen, setIsHubspotModalOpen] = useState(false);
 
   const handleExportExcel = async () => {
     setIsExporting(true);
@@ -339,26 +341,36 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Excel Upload Area */}
+      {/* Volume Ingestion Area (HubSpot API or Excel Upload) */}
       {!isProvaReal && (
-        <div className="rounded-2xl border border-dashed bg-card/60 backdrop-blur p-6 transition-all hover:bg-accent/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="rounded-2xl border border-dashed bg-card/60 backdrop-blur p-6 transition-all hover:bg-accent/20 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-left">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
               <FileSpreadsheet className="h-6 w-6" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                Importar Relatório de Volume (Excel .xlsx)
+                Volume de Chamados (HubSpot API ou Planilha Excel)
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
-                Selecione a planilha de volumes de 3 meses. O sistema identificará as colunas de
-                dias da semana e aplicará o cálculo de divisão por 13 automaticamente para preencher
-                o volume médio semanal do {channelLabel}.
+                Sincronize os chamados diretamente do HubSpot por período ou carregue uma planilha
+                de 3 meses (.xlsx) dividida por 13 semanas para preencher o volume médio semanal do{" "}
+                {channelLabel}.
               </p>
             </div>
           </div>
 
-          <div className="relative shrink-0 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full md:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsHubspotModalOpen(true)}
+              disabled={isReadOnly}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-secondary text-secondary-foreground border border-border/60 hover:bg-secondary/80 px-4 py-2.5 text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <CloudDownload className="h-4 w-4 text-primary" />
+              Buscar do HubSpot
+            </button>
+
             <label
               className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-xs font-semibold hover:bg-primary/95 transition-all shadow-md cursor-pointer ${isUploading || isReadOnly ? "opacity-70 pointer-events-none" : ""}`}
             >
@@ -385,6 +397,14 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
         </div>
       )}
 
+      <HubspotVolumeModal
+        isOpen={isHubspotModalOpen}
+        onClose={() => setIsHubspotModalOpen(false)}
+        onVolumeLoaded={(newVols) => {
+          updateHelpdeskVolumes(newVols);
+        }}
+      />
+
       <div className="rounded-xl border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
           <div>
@@ -396,10 +416,11 @@ export function TimeGridSheet({ mode, title, subtitle }: Props) {
               <span key={v.id} className="inline-flex items-center gap-0.5 select-none">
                 <button
                   onClick={() => setView(v.id)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === v.id
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    view === v.id
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    }`}
+                  }`}
                 >
                   {v.label}
                 </button>

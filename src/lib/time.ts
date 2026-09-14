@@ -76,10 +76,19 @@ export const getDefaultLunchTime = (startTime: string): string => {
 const isActiveInterval = (status: IntervalStatus) =>
   status === "trabalhando" || status === "externo" || status === "pausa";
 
+export const timeToOperationalMinutes = (
+  time: string,
+  cutoffHour = EARLY_SHIFT_CUTOFF_HOUR,
+): number => {
+  const [h, m] = time.split(":").map(Number);
+  const adjustedH = h < cutoffHour ? h + 24 : h;
+  return adjustedH * 60 + m;
+};
+
 export const getActiveTimeBlocks = (intervals: Record<string, IntervalStatus>): string[] =>
   Object.keys(intervals)
-    .sort()
-    .filter((time) => isActiveInterval(intervals[time]));
+    .filter((time) => isActiveInterval(intervals[time]))
+    .sort((a, b) => timeToOperationalMinutes(a) - timeToOperationalMinutes(b));
 
 export const getAgentStartTimeMinutes = (
   schedules: Partial<Record<string, ScheduleLike>> | undefined,
@@ -105,12 +114,11 @@ export const getAgentLunchStartMinutes = (
   if (!daySched?.intervals) return SORT_FALLBACK_MINUTES;
 
   const lunchBlocks = Object.keys(daySched.intervals)
-    .sort()
-    .filter((time) => daySched.intervals[time] === "pausa");
+    .filter((time) => daySched.intervals[time] === "pausa")
+    .sort((a, b) => timeToOperationalMinutes(a) - timeToOperationalMinutes(b));
   if (lunchBlocks.length === 0) return SORT_FALLBACK_MINUTES;
 
-  const [h, m] = lunchBlocks[0].split(":").map(Number);
-  return h * 60 + m;
+  return timeToOperationalMinutes(lunchBlocks[0]);
 };
 
 export type SortableAgent = {
@@ -152,15 +160,16 @@ export const getAgentDaySummary = (daySched: ScheduleLike | undefined | null): s
   if (!daySched?.intervals) return "Folga";
 
   const intervals = daySched.intervals;
-  const timeKeys = Object.keys(intervals).sort();
-  const activeBlocks = timeKeys.filter((time) => isActiveInterval(intervals[time]));
+  const activeBlocks = getActiveTimeBlocks(intervals);
 
   if (activeBlocks.length === 0) return "Folga";
 
   const startTime = activeBlocks[0];
   const endTime = getNext20MinTime(activeBlocks[activeBlocks.length - 1]);
 
-  const lunchBlocks = timeKeys.filter((time) => intervals[time] === "pausa");
+  const lunchBlocks = Object.keys(intervals)
+    .filter((time) => intervals[time] === "pausa")
+    .sort((a, b) => timeToOperationalMinutes(a) - timeToOperationalMinutes(b));
   let lunchSummary = "";
   if (lunchBlocks.length > 0) {
     const lunchStart = lunchBlocks[0];
@@ -168,7 +177,9 @@ export const getAgentDaySummary = (daySched: ScheduleLike | undefined | null): s
     lunchSummary = ` (Almoço: ${lunchStart} às ${lunchEnd})`;
   }
 
-  const externalBlocks = timeKeys.filter((time) => intervals[time] === "externo");
+  const externalBlocks = Object.keys(intervals)
+    .filter((time) => intervals[time] === "externo")
+    .sort((a, b) => timeToOperationalMinutes(a) - timeToOperationalMinutes(b));
   let extSummary = "";
   if (externalBlocks.length > 0) {
     const extStart = externalBlocks[0];

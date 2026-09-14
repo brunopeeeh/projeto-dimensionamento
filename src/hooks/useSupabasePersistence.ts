@@ -1,6 +1,15 @@
-import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  loadCanonicalMonth,
+  syncCanonicalAreas,
+  teamAgentsSignature,
+  capacitySignature,
+  volumesSignature,
+  newHiresSignature,
+  paramsMatch,
+} from "@/lib/canonical-persistence";
 import {
   DEFAULT_SIMULTANEOUS_HELPDESK,
   DEFAULT_SCENARIO_PARAMS,
@@ -19,6 +28,8 @@ import type {
 } from "@/context/types";
 
 const INITIAL_TEAM_AGENTS: TeamAgent[] = [];
+
+export type DirtyArea = "escala" | "volumes" | "parametros";
 
 export type MonthPersistenceSnapshot = {
   teamAgents: TeamAgent[];
@@ -49,6 +60,32 @@ type SeedData = {
   capacityAgents: CapacityAgent[];
 };
 
+// In-memory cache of month name to month ID to avoid repeated queries to `meses`
+const monthIdMap = new Map<string, string>();
+
+export function getCachedMonthId(name: string): string | undefined {
+  return monthIdMap.get(name);
+}
+
+export function setCachedMonthId(name: string, id: string): void {
+  monthIdMap.set(name, id);
+}
+
+export async function resolveMonthId(client: SupabaseClient, monthName: string): Promise<string> {
+  const cached = monthIdMap.get(monthName);
+  if (cached) return cached;
+
+  const { data: monthObj, error: monthError } = await client
+    .from("meses")
+    .select("id")
+    .eq("nome", monthName)
+    .single();
+
+  if (monthError) throw monthError;
+  monthIdMap.set(monthName, monthObj.id);
+  return monthObj.id;
+}
+
 async function seedDefaultMonth(client: SupabaseClient, seed: SeedData) {
   const { data: newMonth, error: insertError } = await client
     .from("meses")
@@ -59,6 +96,7 @@ async function seedDefaultMonth(client: SupabaseClient, seed: SeedData) {
   if (insertError) throw insertError;
 
   const mesId = newMonth.id;
+  monthIdMap.set(DEFAULT_MONTH_NAME, mesId);
 
   await Promise.all([
     client.from("escala_equipe").insert([
@@ -88,38 +126,78 @@ async function seedDefaultMonth(client: SupabaseClient, seed: SeedData) {
   return DEFAULT_MONTHS;
 }
 
-async function upsertMonthData(
+async function upsertEscala(
   client: SupabaseClient,
   mesId: string,
   snapshot: MonthPersistenceSnapshot,
 ) {
-  await Promise.all([
-    client.from("escala_equipe").upsert(
-      {
-        mes_id: mesId,
-        team_agents: snapshot.teamAgents,
-        capacity_agents: snapshot.capacityAgents,
-      },
-      { onConflict: "mes_id" },
-    ),
-    client.from("volumes_chamados").upsert(
-      {
-        mes_id: mesId,
-        helpdesk_volumes: snapshot.helpdeskVolumes,
-      },
-      { onConflict: "mes_id" },
-    ),
-    client.from("parametros_operacionais").upsert(
-      {
-        mes_id: mesId,
-        tma_factors: snapshot.tmaFactors,
-        simultaneous_helpdesk: snapshot.simultaneous,
-        scenarios: snapshot.scenarios,
-        new_hires: snapshot.newHires,
-      },
-      { onConflict: "mes_id" },
-    ),
-  ]);
+  const { error } = await client.from("escala_equipe").upsert(
+    {
+      mes_id: mesId,
+      team_agents: snapshot.teamAgents,
+      capacity_agents: snapshot.capacityAgents,
+    },
+    { onConflict: "mes_id" },
+  );
+  if (error) throw error;
+}
+
+async function upsertVolumes(
+  client: SupabaseClient,
+  mesId: string,
+  snapshot: MonthPersistenceSnapshot,
+) {
+  const { error } = await client.from("volumes_chamados").upsert(
+    {
+      mes_id: mesId,
+      helpdesk_volumes: snapshot.helpdeskVolumes,
+    },
+    { onConflict: "mes_id" },
+  );
+  if (error) throw error;
+}
+
+async function upsertParametros(
+  client: SupabaseClient,
+  mesId: string,
+  snapshot: MonthPersistenceSnapshot,
+) {
+  const { error } = await client.from("parametros_operacionais").upsert(
+    {
+      mes_id: mesId,
+      tma_factors: snapshot.tmaFactors,
+      simultaneous_helpdesk: snapshot.simultaneous,
+      scenarios: snapshot.scenarios,
+      new_hires: snapshot.newHires,
+    },
+    { onConflict: "mes_id" },
+  );
+  if (error) throw error;
+}
+
+async function saveDirtyMonthData(
+  client: SupabaseClient,
+  mesId: string,
+  monthName: string,
+  snapshot: MonthPersistenceSnapshot,
+  dirtyAreas: ReadonlySet<DirtyArea>,
+) {
+  const promises: Promise<void>[] = [];
+  if (dirtyAreas.has("escala")) promises.push(upsertEscala(client, mesId, snapshot));
+  if (dirtyAreas.has("volumes")) promises.push(upsertVolumes(client, mesId, snapshot));
+  if (dirtyAreas.has("parametros")) promises.push(upsertParametros(client, mesId, snapshot));
+
+  if (promises.length > 0) {
+    await Promise.all(promises);
+  }
+
+  // Dual-write do schema canônico (best-effort). O legado acima continua
+  // sendo a fonte de leitura nesta fase; falha aqui não invalida o save.
+  try {
+    await syncCanonicalAreas(client, monthName, snapshot, dirtyAreas);
+  } catch (err) {
+    console.error(`Falha ao espelhar no schema canônico (${monthName}):`, err);
+  }
 }
 
 export function useSupabasePersistence(
@@ -128,68 +206,115 @@ export function useSupabasePersistence(
   snapshot: MonthPersistenceSnapshot,
   setters: MonthPersistenceSetters,
   seed: SeedData,
+  dirtyAreas: Set<DirtyArea>,
+  clearDirtyAreas: (areas?: DirtyArea[]) => void,
 ) {
+  const isHydratingRef = useRef(false);
+
   const loadMonthDataFromSupabase = useCallback(
     async (monthName: string) => {
       const client = supabase;
       if (!client) return;
 
       try {
-        const { data: monthObj, error: monthError } = await client
-          .from("meses")
-          .select("id")
-          .eq("nome", monthName)
-          .single();
+        isHydratingRef.current = true;
+        const mesId = await resolveMonthId(client, monthName);
 
-        if (monthError) throw monthError;
-        const mesId = monthObj.id;
-
-        const [escalaRes, volumesRes, paramsRes] = await Promise.all([
+        // Legado (fallback) + canônico (virada de leitura) em paralelo.
+        const [escalaRes, volumesRes, paramsRes, canonical] = await Promise.all([
           client.from("escala_equipe").select("*").eq("mes_id", mesId).maybeSingle(),
           client.from("volumes_chamados").select("*").eq("mes_id", mesId).maybeSingle(),
           client.from("parametros_operacionais").select("*").eq("mes_id", mesId).maybeSingle(),
+          loadCanonicalMonth(client, monthName),
         ]);
 
-        if (escalaRes.data) {
-          setters.setTeamAgents(escalaRes.data.team_agents);
-          setters.setCapacityAgents(escalaRes.data.capacity_agents);
+        const legacyTeamAgents = escalaRes.data?.team_agents ?? [];
+        const legacyCapacityAgents = escalaRes.data?.capacity_agents ?? seed.capacityAgents;
+        const legacyVolumes = volumesRes.data?.helpdesk_volumes ?? seed.helpdeskVolumes;
+        const legacyTma = paramsRes.data?.tma_factors ?? DEFAULT_TMA_FACTORS;
+        const legacySimultaneous =
+          paramsRes.data?.simultaneous_helpdesk ?? DEFAULT_SIMULTANEOUS_HELPDESK;
+        const legacyScenarios = paramsRes.data?.scenarios ?? DEFAULT_SCENARIO_PARAMS;
+        const legacyNewHires = paramsRes.data?.new_hires ?? DEFAULT_NEW_HIRES;
+
+        // Guard de paridade: o canônico só é lido quando bate com o legado.
+        // Se divergiu (cliente antigo escreveu só no legado), usa o legado —
+        // e o próximo save dual-write reconverge.
+        const trusted = <T>(
+          canonicalValue: T | null,
+          legacyValue: T,
+          signature: (value: T) => string,
+          label: string,
+        ): T => {
+          if (canonicalValue === null) return legacyValue;
+          if (signature(canonicalValue) === signature(legacyValue)) return canonicalValue;
+          console.warn(`[canônico] ${label} divergente do legado — lendo o legado nesta carga.`);
+          return legacyValue;
+        };
+
+        const paramsCanonical = paramsMatch(canonical, {
+          tmaFactors: legacyTma,
+          simultaneous: legacySimultaneous,
+          scenarios: legacyScenarios,
+        })
+          ? {
+              tma: canonical.tmaFactors as Record<Day, number>,
+              sim: canonical.simultaneous as number,
+              scen: canonical.scenarios as ScenarioParams,
+            }
+          : null;
+        if (canonical.tmaFactors && !paramsCanonical) {
+          console.warn("[canônico] parâmetros divergentes do legado — lendo o legado nesta carga.");
         }
-        if (volumesRes.data) {
-          setters.setHelpdeskVolumes(volumesRes.data.helpdesk_volumes ?? seed.helpdeskVolumes);
-        }
-        if (paramsRes.data) {
-          setters.setTmaFactors(paramsRes.data.tma_factors);
-          setters.setSimultaneous(paramsRes.data.simultaneous_helpdesk);
-          setters.setScenarios(paramsRes.data.scenarios);
-          setters.setNewHires(paramsRes.data.new_hires);
-        }
+
+        setters.setTeamAgents(
+          trusted(canonical.teamAgents, legacyTeamAgents, teamAgentsSignature, "escala"),
+        );
+        setters.setCapacityAgents(
+          trusted(canonical.capacityAgents, legacyCapacityAgents, capacitySignature, "capacity"),
+        );
+        setters.setHelpdeskVolumes(
+          trusted(canonical.helpdeskVolumes, legacyVolumes, volumesSignature, "volumes"),
+        );
+        setters.setTmaFactors(paramsCanonical?.tma ?? legacyTma);
+        setters.setSimultaneous(paramsCanonical?.sim ?? legacySimultaneous);
+        setters.setScenarios(paramsCanonical?.scen ?? legacyScenarios);
+        setters.setNewHires(
+          trusted(canonical.newHires, legacyNewHires, newHiresSignature, "contratações"),
+        );
+
+        // Crucial: ensure freshly loaded data is not marked dirty
+        clearDirtyAreas();
       } catch (err) {
         console.error(`Failed to load data for month ${monthName}:`, err);
+      } finally {
+        isHydratingRef.current = false;
       }
     },
-    [setters],
+    [setters, seed.helpdeskVolumes, seed.capacityAgents, clearDirtyAreas],
   );
 
   const saveMonthDataToSupabase = useCallback(
-    async (monthName: string) => {
+    async (monthName: string, areasToSave?: ReadonlySet<DirtyArea>) => {
       const client = supabase;
       if (!client) return;
 
-      try {
-        const { data: monthObj, error: monthError } = await client
-          .from("meses")
-          .select("id")
-          .eq("nome", monthName)
-          .single();
+      const areas = areasToSave ?? new Set<DirtyArea>(["escala", "volumes", "parametros"]);
+      if (areas.size === 0) {
+        return;
+      }
 
-        if (monthError) throw monthError;
-        await upsertMonthData(client, monthObj.id, snapshot);
-        console.log(`Successfully saved data for month ${monthName} before switching.`);
+      try {
+        const mesId = await resolveMonthId(client, monthName);
+        await saveDirtyMonthData(client, mesId, monthName, snapshot, areas);
+        clearDirtyAreas(Array.from(areas));
+        console.log(`Successfully saved [${Array.from(areas).join(", ")}] for month ${monthName}.`);
       } catch (err) {
         console.error(`Failed to save data for month ${monthName}:`, err);
+        throw err;
       }
     },
-    [snapshot],
+    [snapshot, clearDirtyAreas],
   );
 
   useEffect(() => {
@@ -202,12 +327,17 @@ export function useSupabasePersistence(
 
       try {
         setters.setIsLoading(true);
+        isHydratingRef.current = true;
         const { data: monthsData, error: monthsError } = await client
           .from("meses")
-          .select("*")
+          .select("id, nome")
           .order("created_at", { ascending: true });
 
         if (monthsError) throw monthsError;
+
+        monthsData?.forEach((m: { id: string; nome: string }) => {
+          monthIdMap.set(m.nome, m.id);
+        });
 
         let monthsList = monthsData.map((m: { nome: string }) => m.nome);
 
@@ -223,6 +353,8 @@ export function useSupabasePersistence(
         console.error("Failed to initialize Supabase:", err);
       } finally {
         setters.setIsLoading(false);
+        isHydratingRef.current = false;
+        clearDirtyAreas();
       }
     }
 
@@ -232,19 +364,17 @@ export function useSupabasePersistence(
 
   useEffect(() => {
     const client = supabase;
-    if (!client || isLoading) return;
+    // Don't auto-save if offline, loading, hydrating or nothing is dirty
+    if (!client || isLoading || isHydratingRef.current || dirtyAreas.size === 0) return;
+
+    const areasToSave = new Set(dirtyAreas);
 
     const delayDebounce = setTimeout(async () => {
       try {
         setters.setSaveStatus("saving");
-        const { data: monthObj, error: monthError } = await client
-          .from("meses")
-          .select("id")
-          .eq("nome", currentMonth)
-          .single();
-
-        if (monthError) throw monthError;
-        await upsertMonthData(client, monthObj.id, snapshot);
+        const mesId = await resolveMonthId(client, currentMonth);
+        await saveDirtyMonthData(client, mesId, currentMonth, snapshot, areasToSave);
+        clearDirtyAreas(Array.from(areasToSave));
         setters.setSaveStatus("saved");
       } catch (err) {
         console.error("Auto-save failed:", err);
@@ -253,9 +383,8 @@ export function useSupabasePersistence(
     }, 1000);
 
     return () => clearTimeout(delayDebounce);
-    // setters.* are stable React dispatchers
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonth, isLoading, snapshot]);
+  }, [currentMonth, isLoading, snapshot, dirtyAreas]);
 
   return { loadMonthDataFromSupabase, saveMonthDataToSupabase };
 }

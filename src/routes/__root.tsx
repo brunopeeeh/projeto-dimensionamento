@@ -8,6 +8,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteNav } from "@/components/SiteNav";
 import { Sidebar } from "@/components/Sidebar";
 import { DimensionamentoProvider, useDimensionamento } from "../context/DimensionamentoContext";
+import { ThemeProvider } from "../context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import {
   Dialog,
@@ -88,9 +89,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning={true}>
+    <html lang="pt-BR" className="dark" suppressHydrationWarning={true}>
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.documentElement.classList.add('dark');`,
+          }}
+        />
       </head>
       <body suppressHydrationWarning={true}>
         {children}
@@ -104,9 +110,11 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <DimensionamentoProvider>
-        <RootLayoutContent />
-      </DimensionamentoProvider>
+      <ThemeProvider>
+        <DimensionamentoProvider>
+          <RootLayoutContent />
+        </DimensionamentoProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
@@ -117,6 +125,13 @@ function RootLayoutContent() {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+    }
+  }, [isLoading, hasLoadedOnce]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -140,31 +155,26 @@ function RootLayoutContent() {
       <Toaster />
 
       <Dialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
-        <DialogContent className="max-w-md border-border bg-card p-6 shadow-2xl rounded-xl animate-in zoom-in-95 duration-200">
+        <DialogContent className="max-w-md bg-card border border-border">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
-              ⚠️ Restaurar Originais
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-2">
-              Tem certeza que deseja restaurar os valores padrão?
-              <span className="block mt-1.5 font-semibold text-rose-500 dark:text-rose-400">
-                Esta ação apagará todos os dados do período atual (equipe, volumes importados,
-                capacities e parâmetros operacionais) e não poderá ser desfeita.
-              </span>
+            <DialogTitle className="text-foreground">Restaurar Valores Padrão?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Esta ação substituirá todos os volumes, capacidades, fatores TMA e parâmetros pelos
+              valores originais da semente. Não é possível desfazer.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-4 flex gap-2">
+          <DialogFooter className="gap-2">
             <button
               onClick={() => setIsResetConfirmOpen(false)}
-              className="flex-1 rounded-lg border border-border bg-background py-2 text-xs font-semibold hover:bg-accent transition-colors cursor-pointer"
+              className="inline-flex items-center rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent border-border cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={executeResetAll}
-              className="flex-1 rounded-lg bg-destructive text-destructive-foreground py-2 text-xs font-bold hover:bg-destructive/90 transition-colors cursor-pointer"
+              className="inline-flex items-center rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:bg-destructive/90 cursor-pointer"
             >
-              Sim, Restaurar
+              Confirmar e Restaurar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -178,26 +188,23 @@ function RootLayoutContent() {
           onCloseMobile={() => setIsMobileOpen(false)}
         />
         <main className="flex-1 flex flex-col min-w-0 transition-all duration-300">
-          <div className="w-full mx-auto max-w-[1400px] px-4 py-6 sm:py-8">
-            <div
-              className={
-                isLoading
-                  ? "pointer-events-none opacity-40 blur-[1px] transition-all duration-200"
-                  : "transition-all duration-200"
-              }
-            >
-              <Outlet />
+          {hasLoadedOnce && isLoading && (
+            <div className="h-0.5 w-full bg-primary/20 overflow-hidden">
+              <div className="h-full bg-primary animate-pulse w-full" />
             </div>
+          )}
+          <div className="w-full mx-auto max-w-[1400px] px-4 py-6 sm:py-8">
+            <Outlet />
           </div>
         </main>
       </div>
 
-      {isLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/20 backdrop-blur-[1px] pointer-events-auto">
+      {!hasLoadedOnce && isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-2.5 p-5 bg-card border border-border shadow-2xl rounded-xl animate-in zoom-in-95 duration-200">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Carregando período...
+              Inicializando sistema...
             </span>
           </div>
         </div>

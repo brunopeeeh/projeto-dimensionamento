@@ -35,11 +35,11 @@ export function getCellStyles(status: IntervalStatus, isSimulated?: boolean): st
   if (isSimulated) {
     switch (status) {
       case "trabalhando":
-        return "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-dashed border-emerald-500/40 hover:bg-emerald-500/25";
+        return "bg-[#006D3E]/30 text-emerald-400 border border-dashed border-[#006D3E]/60 hover:bg-[#006D3E]/40";
       case "externo":
-        return "bg-[#bae1ff]/40 text-[#1b4365] border border-dashed border-[#bae1ff]/60";
+        return "bg-[#008AD4]/30 text-sky-400 border border-dashed border-[#008AD4]/60";
       case "pausa":
-        return "bg-[#f8b890]/40 text-[#6d3000] border border-dashed border-[#f8b890]/60";
+        return "bg-[#F54A00]/30 text-orange-400 border border-dashed border-[#F54A00]/60";
       case "folga":
       default:
         return "bg-white dark:bg-[#1a1b23] text-transparent border border-dashed border-slate-200/20";
@@ -47,11 +47,11 @@ export function getCellStyles(status: IntervalStatus, isSimulated?: boolean): st
   }
   switch (status) {
     case "trabalhando":
-      return "bg-[#c6dfc0] text-[#2d5a27] hover:bg-[#b6cfb0] border-slate-200/50";
+      return "bg-[#006D3E] text-white hover:bg-[#005a33] border-[#005a33]/50";
     case "externo":
-      return "bg-[#bae1ff] text-[#1b4365] hover:bg-[#a6d4fa] border-slate-200/50";
+      return "bg-[#008AD4] text-white hover:bg-[#0077b8] border-[#0077b8]/50";
     case "pausa":
-      return "bg-[#f8b890] text-[#6d3000] hover:bg-[#e8a880] border-slate-200/50";
+      return "bg-[#F54A00] text-white hover:bg-[#dd4200] border-[#dd4200]/50";
     case "folga":
     default:
       return "bg-white dark:bg-[#1a1b23] text-transparent hover:bg-slate-50 dark:hover:bg-slate-800/20 border-slate-200/20";

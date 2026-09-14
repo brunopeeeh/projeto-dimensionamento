@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { matchAgentName } from "@/lib/agents";
@@ -11,7 +19,12 @@ import {
   DEFAULT_TMA_FACTORS,
   DEFAULT_NEW_HIRES,
 } from "@/lib/constants";
-import { useSupabasePersistence } from "@/hooks/useSupabasePersistence";
+import {
+  useSupabasePersistence,
+  resolveMonthId,
+  type DirtyArea,
+} from "@/hooks/useSupabasePersistence";
+import { syncCanonicalAreas, type CanonicalArea } from "@/lib/canonical-persistence";
 import { useInitialData } from "./useInitialData";
 import { useScheduleActions } from "./useScheduleActions";
 import { useDataImport } from "./useDataImport";
@@ -58,6 +71,26 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
+
+  // Dirty tracking for granular saving and autosave prevention on hydration
+  const [dirtyAreas, setDirtyAreas] = useState<Set<DirtyArea>>(new Set());
+  const dirtyAreasRef = useRef<Set<DirtyArea>>(new Set());
+
+  const markDirty = useCallback((area: DirtyArea) => {
+    if (!dirtyAreasRef.current.has(area)) {
+      dirtyAreasRef.current.add(area);
+      setDirtyAreas(new Set(dirtyAreasRef.current));
+    }
+  }, []);
+
+  const clearDirtyAreas = useCallback((areas?: DirtyArea[]) => {
+    if (!areas) {
+      dirtyAreasRef.current.clear();
+    } else {
+      areas.forEach((a) => dirtyAreasRef.current.delete(a));
+    }
+    setDirtyAreas(new Set(dirtyAreasRef.current));
+  }, []);
 
   const [helpdeskVolumes, setHelpdeskVolumes] = useState(initialData.helpdeskVolumes);
 
@@ -145,10 +178,13 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       helpdeskVolumes: initialData.helpdeskVolumes,
       capacityAgents: initialCapacityAgents,
     },
+    dirtyAreas,
+    clearDirtyAreas,
   );
 
-  // ---- Simple state updaters ----
+  // ---- Simple state updaters with dirty marking ----
   const updateTimeBlockVolume = (time: string, day: Day, value: number) => {
+    markDirty("volumes");
     setHelpdeskVolumes((prev) => ({
       ...prev,
       [time]: {
@@ -159,6 +195,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const updateTmaFactor = (day: Day, value: number) => {
+    markDirty("parametros");
     setTmaFactors((prev) => ({
       ...prev,
       [day]: Math.max(0.1, value),
@@ -166,10 +203,12 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const updateSimultaneous = (value: number) => {
+    markDirty("parametros");
     setSimultaneous(Math.max(1, value));
   };
 
   const updateScenario = (key: keyof ScenarioParams, value: number) => {
+    markDirty("parametros");
     setScenarios((prev) => ({
       ...prev,
       [key]: Math.max(0, value),
@@ -177,12 +216,14 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const toggleAgentActive = (agentId: string) => {
+    markDirty("escala");
     setTeamAgents((prev) =>
       prev.map((agent) => (agent.id === agentId ? { ...agent, active: !agent.active } : agent)),
     );
   };
 
   const addTeamAgent = (name: string) => {
+    markDirty("escala");
     const newAgent: TeamAgent = {
       id: "a_" + Date.now(),
       name,
@@ -193,19 +234,17 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const removeTeamAgent = (agentId: string) => {
+    markDirty("escala");
     setTeamAgents((prev) => prev.filter((agent) => agent.id !== agentId));
   };
 
   const updateTeamAgentName = (agentId: string, newName: string) => {
-    let oldName = "";
+    markDirty("escala");
+    const target = teamAgents.find((agent) => agent.id === agentId);
+    const oldName = target?.name ?? "";
+
     setTeamAgents((prev) =>
-      prev.map((agent) => {
-        if (agent.id === agentId) {
-          oldName = agent.name;
-          return { ...agent, name: newName };
-        }
-        return agent;
-      }),
+      prev.map((agent) => (agent.id === agentId ? { ...agent, name: newName } : agent)),
     );
 
     if (oldName) {
@@ -215,15 +254,40 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     }
   };
 
-  const updateCapacityAgent = (name: string, value: number) => {
+  const updateCapacityAgent = (name: string, value: number, active?: boolean) => {
+    markDirty("escala");
     setCapacityAgents((prev) => {
       const index = prev.findIndex((a) => matchAgentName(a.name, name));
       if (index !== -1) {
         const updated = [...prev];
-        updated[index] = { ...updated[index], mediaTri: Math.max(0, value) };
+        updated[index] = {
+          ...updated[index],
+          mediaTri: Math.max(0, value),
+          ...(active !== undefined ? { active } : {}),
+        };
         return updated;
       }
-      return [...prev, { name, mediaTri: Math.max(0, value) }];
+      return [
+        ...prev,
+        {
+          name,
+          mediaTri: Math.max(0, value),
+          ...(active !== undefined ? { active } : {}),
+        },
+      ];
+    });
+  };
+
+  const setCapacityAgentActive = (name: string, active: boolean) => {
+    markDirty("escala");
+    setCapacityAgents((prev) => {
+      const index = prev.findIndex((a) => matchAgentName(a.name, name));
+      if (index !== -1) {
+        const updated = [...prev];
+        updated[index] = { ...updated[index], active };
+        return updated;
+      }
+      return [...prev, { name, mediaTri: 0, active }];
     });
   };
 
@@ -242,14 +306,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     }
 
     try {
-      const { data: monthObj, error: monthError } = await client
-        .from("meses")
-        .select("id")
-        .eq("nome", currentMonth)
-        .single();
-
-      if (monthError) throw monthError;
-      const mesId = monthObj.id;
+      const mesId = await resolveMonthId(client, currentMonth);
 
       // Upsert default reset values to Supabase
       await Promise.all([
@@ -280,6 +337,26 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
         ),
       ]);
 
+      // Espelha o reset no schema canônico (best-effort).
+      try {
+        await syncCanonicalAreas(
+          client,
+          currentMonth,
+          {
+            teamAgents: [],
+            capacityAgents: initialCapacityAgents,
+            helpdeskVolumes: initialData.helpdeskVolumes,
+            tmaFactors: DEFAULT_TMA_FACTORS,
+            simultaneous: DEFAULT_SIMULTANEOUS_HELPDESK,
+            scenarios: DEFAULT_SCENARIO_PARAMS,
+            newHires: DEFAULT_NEW_HIRES,
+          },
+          new Set<CanonicalArea>(["escala", "volumes", "parametros"]),
+        );
+      } catch (err) {
+        console.error("Falha ao espelhar reset no schema canônico:", err);
+      }
+
       // Update React state after database confirmation
       setHelpdeskVolumes(initialData.helpdeskVolumes);
       setTeamAgents([]);
@@ -288,6 +365,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       setSimultaneous(DEFAULT_SIMULTANEOUS_HELPDESK);
       setScenarios(DEFAULT_SCENARIO_PARAMS);
       setNewHires(DEFAULT_NEW_HIRES);
+      clearDirtyAreas();
 
       toast.success("Valores restaurados com sucesso!");
     } catch (err) {
@@ -302,14 +380,55 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
   const newHiresRef = useRef(newHires);
   newHiresRef.current = newHires;
 
-  const { toggleIntervalStatus, applyPresetShift } = useScheduleActions(
-    setTeamAgents,
-    setNewHires,
-    () => newHiresRef.current,
+  const { toggleIntervalStatus: rawToggleIntervalStatus, applyPresetShift: rawApplyPresetShift } =
+    useScheduleActions(setTeamAgents, setNewHires, () => newHiresRef.current);
+
+  const toggleIntervalStatus = useCallback(
+    (agentId: string, day: Day, time20: string) => {
+      markDirty(newHiresRef.current.some((h) => h.id === agentId) ? "parametros" : "escala");
+      rawToggleIntervalStatus(agentId, day, time20);
+    },
+    [markDirty, rawToggleIntervalStatus],
+  );
+
+  const applyPresetShift = useCallback(
+    (
+      agentId: string,
+      day: Day,
+      start: string,
+      end: string,
+      lunchStart: string,
+      externalStart?: string,
+      externalDurationMin?: number,
+    ) => {
+      markDirty(newHiresRef.current.some((h) => h.id === agentId) ? "parametros" : "escala");
+      rawApplyPresetShift(agentId, day, start, end, lunchStart, externalStart, externalDurationMin);
+    },
+    [markDirty, rawApplyPresetShift],
   );
 
   // ---- Data import (extracted hook) ----
-  const { importPowerBIData, updateHelpdeskVolumes } = useDataImport(setHelpdeskVolumes);
+  const {
+    importPowerBIData: rawImportPowerBIData,
+    updateHelpdeskVolumes: rawUpdateHelpdeskVolumes,
+  } = useDataImport(setHelpdeskVolumes);
+
+  const importPowerBIData = useCallback(
+    (helpdeskCsv: string) => {
+      const ok = rawImportPowerBIData(helpdeskCsv);
+      if (ok) markDirty("volumes");
+      return ok;
+    },
+    [markDirty, rawImportPowerBIData],
+  );
+
+  const updateHelpdeskVolumes = useCallback(
+    (newVolumes: Record<string, Record<Day, number>>) => {
+      markDirty("volumes");
+      rawUpdateHelpdeskVolumes(newVolumes);
+    },
+    [markDirty, rawUpdateHelpdeskVolumes],
+  );
 
   // ---- Month management (extracted hook) ----
   const createMonthSnapshotRef = useRef({
@@ -341,6 +460,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     saveMonthDataToSupabase,
     loadMonthDataFromSupabase,
     () => createMonthSnapshotRef.current,
+    dirtyAreas,
   );
 
   // ---- Calculations (memoized from extracted lib) ----
@@ -363,6 +483,22 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     [timeBlocks, helpdeskVolumes, teamAgents, dynamicTmaFactors, simultaneous, newHires],
   );
 
+  const wrappedSetTeamAgents = useCallback<React.Dispatch<React.SetStateAction<TeamAgent[]>>>(
+    (action) => {
+      markDirty("escala");
+      setTeamAgents(action);
+    },
+    [markDirty],
+  );
+
+  const wrappedSetNewHires = useCallback<React.Dispatch<React.SetStateAction<NewAgentHire[]>>>(
+    (action) => {
+      markDirty("parametros");
+      setNewHires(action);
+    },
+    [markDirty],
+  );
+
   // ---- Stable action references ----
   const actionsRef = useRef({
     changeActiveMonth,
@@ -379,6 +515,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     updateTeamAgentName,
     updateScenario,
     updateCapacityAgent,
+    setCapacityAgentActive,
     resetAll,
     executeResetAll,
     importPowerBIData,
@@ -399,6 +536,7 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
     updateTeamAgentName,
     updateScenario,
     updateCapacityAgent,
+    setCapacityAgentActive,
     resetAll,
     executeResetAll,
     importPowerBIData,
@@ -441,8 +579,10 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
         actionsRef.current.updateTeamAgentName(agentId, newName),
       updateScenario: (key: keyof ScenarioParams, value: number) =>
         actionsRef.current.updateScenario(key, value),
-      updateCapacityAgent: (name: string, value: number) =>
-        actionsRef.current.updateCapacityAgent(name, value),
+      updateCapacityAgent: (name: string, value: number, active?: boolean) =>
+        actionsRef.current.updateCapacityAgent(name, value, active),
+      setCapacityAgentActive: (name: string, active: boolean) =>
+        actionsRef.current.setCapacityAgentActive(name, active),
       resetAll: () => actionsRef.current.resetAll(),
       executeResetAll: () => actionsRef.current.executeResetAll(),
       importPowerBIData: (helpdeskCsv: string) => actionsRef.current.importPowerBIData(helpdeskCsv),
@@ -474,8 +614,8 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       isResetConfirmOpen,
       setIsResetConfirmOpen,
       ...stableActions,
-      setTeamAgents,
-      setNewHires,
+      setTeamAgents: wrappedSetTeamAgents,
+      setNewHires: wrappedSetNewHires,
     }),
     [
       rowCalculations,
@@ -496,6 +636,8 @@ export const DimensionamentoProvider: React.FC<{ children: React.ReactNode }> = 
       isReadOnly,
       isResetConfirmOpen,
       stableActions,
+      wrappedSetTeamAgents,
+      wrappedSetNewHires,
     ],
   );
 

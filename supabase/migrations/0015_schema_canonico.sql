@@ -1,5 +1,5 @@
 -- ============================================================
--- 002_schema_canonico.sql
+-- 0015_schema_canonico.sql
 -- Schema canônico multi-fonte do Dimensionamento Care.
 --
 -- Princípios:

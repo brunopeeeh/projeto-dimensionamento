@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { normalizeName, matchAgentName, mergeAgentVolumes } from "./agents";
+import {
+  findAiAgent,
+  findSupportAgent,
+  isHumanAgent,
+  normalizeName,
+  matchAgentName,
+  mergeAgentVolumes,
+} from "./agents";
 
 describe("normalizeName", () => {
   it("lowercases, strips accents, and removes non-letters", () => {
@@ -25,6 +32,34 @@ describe("matchAgentName", () => {
 
   it("is accent- and case-insensitive", () => {
     expect(matchAgentName("JÚLIO", "julio cesar")).toBe(true);
+  });
+});
+
+describe("isHumanAgent", () => {
+  it("excludes every historical AI and support alias", () => {
+    expect(isHumanAgent("Care IA")).toBe(false);
+    expect(isHumanAgent("Care AI")).toBe(false);
+    expect(isHumanAgent("Maya dos Santos (IA)")).toBe(false);
+    expect(isHumanAgent("Yooga Suporte")).toBe(false);
+    expect(isHumanAgent("Yooga Tecnologia")).toBe(false);
+    expect(isHumanAgent("Sabrina")).toBe(true);
+  });
+});
+
+describe("special capacity aliases", () => {
+  const capacityAgents = [
+    { name: "Care AI", mediaTri: 1 },
+    { name: "Care IA", mediaTri: 2 },
+    { name: "Yooga Tecnologia", mediaTri: 3 },
+    { name: "Yooga Suporte", mediaTri: 4 },
+  ];
+
+  it("prefers the canonical Care IA row", () => {
+    expect(findAiAgent(capacityAgents)?.mediaTri).toBe(2);
+  });
+
+  it("prefers the canonical Yooga Suporte row", () => {
+    expect(findSupportAgent(capacityAgents)?.mediaTri).toBe(4);
   });
 });
 

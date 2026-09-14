@@ -14,18 +14,25 @@ export const parseLooseNumber = (raw: string) => {
   const value = raw.trim().replace(/\s+/g, "");
   if (isTransientNumericInput(value)) return null;
 
+  const hasComma = value.includes(",");
   const lastComma = value.lastIndexOf(",");
   const lastDot = value.lastIndexOf(".");
 
-  const decimalSeparator =
-    lastComma === -1 && lastDot === -1 ? null : lastComma > lastDot ? "," : ".";
-
   let normalized = value;
-  if (decimalSeparator) {
-    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
-    normalized = normalized.split(thousandsSeparator).join("");
-    if (decimalSeparator === ",") {
-      normalized = normalized.replace(",", ".");
+  // pt-BR: sem vírgula, "." seguido de grupo de 3 dígitos é separador de milhar
+  // ("6.800" = 6800, "1.234.567" = 1234567). Senão, "." é decimal ("6.8").
+  if (!hasComma && /^-?\d{1,3}(\.\d{3})+$/.test(value)) {
+    normalized = value.split(".").join("");
+  } else {
+    const decimalSeparator =
+      lastComma === -1 && lastDot === -1 ? null : lastComma > lastDot ? "," : ".";
+
+    if (decimalSeparator) {
+      const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+      normalized = normalized.split(thousandsSeparator).join("");
+      if (decimalSeparator === ",") {
+        normalized = normalized.replace(",", ".");
+      }
     }
   }
 

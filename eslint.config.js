@@ -6,7 +6,28 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi", "supabase/.temp"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      "supabase/.temp",
+      "node_modules",
+      ".vercel",
+      ".tanstack",
+      ".agents",
+      ".claude",
+      ".commandcode",
+      ".fallow",
+      ".impeccable",
+      ".git",
+      ".github",
+      ".vscode",
+      "graphify-out",
+      "tmp",
+      "scratch",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

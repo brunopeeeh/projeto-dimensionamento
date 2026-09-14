@@ -7,7 +7,7 @@ import {
   Calendar,
   CalendarCheck,
   CalendarRange,
-  FlaskConical,
+  CircleHelp,
   ChevronLeft,
   ChevronRight,
   X,
@@ -20,8 +20,8 @@ export const NAVIGATION_ITEMS = [
   { to: "/capacidade", label: "Capacity por Agente", icon: Users },
   { to: "/helpdesk", label: "Helpdesk", icon: Headphones },
   { to: "/contratacoes", label: "Prova Real", icon: ClipboardCheck },
-  { to: "/simulador", label: "Simulador de Cenários", icon: FlaskConical },
   { to: "/calculadora-anual", label: "Calculadora Anual", icon: CalendarRange },
+  { to: "/tira-duvidas", label: "Tira-dúvidas", icon: CircleHelp },
 ] as const;
 
 type SidebarProps = {

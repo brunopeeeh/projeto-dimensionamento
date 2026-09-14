@@ -20,6 +20,24 @@ export const isSupportAgent = (name: string): boolean => {
   return normalizeName(name).includes("yooga");
 };
 
+export const isHumanAgent = (name: string): boolean => {
+  return !isAiAgent(name) && !isSupportAgent(name);
+};
+
+export function findAiAgent<T extends { name: string }>(agents: T[]): T | undefined {
+  return (
+    agents.find((agent) => normalizeName(agent.name) === "careia") ??
+    agents.find((agent) => isAiAgent(agent.name))
+  );
+}
+
+export function findSupportAgent<T extends { name: string }>(agents: T[]): T | undefined {
+  return (
+    agents.find((agent) => normalizeName(agent.name) === "yoogasuporte") ??
+    agents.find((agent) => isSupportAgent(agent.name))
+  );
+}
+
 export const matchAgentName = (capName: string, teamName: string) => {
   const capNorm = normalizeName(capName);
   const teamNorm = normalizeName(teamName);

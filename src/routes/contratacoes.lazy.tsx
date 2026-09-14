@@ -74,6 +74,8 @@ function ContratacoesComponent() {
         justification={aiState.aiJustification}
         onApply={aiState.handleApplyAiSuggestion}
         isReadOnly={isReadOnly}
+        onForceRefresh={() => aiState.handleAiSuggest({ forceRefresh: true })}
+        isLoading={aiState.aiLoading}
       />
     </div>
   );

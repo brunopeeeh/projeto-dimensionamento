@@ -15,13 +15,6 @@ export const DAYS_PER_WEEK = 7;
 // Canal único (Helpdesk): 3 simultâneos por agente, mesmo valor do antigo Webchat.
 export const DEFAULT_SIMULTANEOUS_HELPDESK = 3;
 
-// ---- Capacidade adicional (IA / Suporte) ----
-// A Care AI atende 24/7 — sua capacidade por bloco de 10min usa o calendário
-// completo, não a jornada humana de 8h x 20 dias úteis.
-// Identificação de IA/Suporte fica em `src/lib/agents.ts` (isAiAgent/isSupportAgent).
-export const AI_DAYS_PER_MONTH = 30;
-export const AI_HOURS_PER_DAY = 24;
-
 // ---- Scenario defaults ----
 export const DEFAULT_SCENARIO_PARAMS: ScenarioParams = {
   clientBase: 3580,

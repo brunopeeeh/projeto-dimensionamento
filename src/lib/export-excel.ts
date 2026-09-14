@@ -106,8 +106,8 @@ export async function buildDimensionamentoWorkbook(
   data.capacityAgents.forEach((agent, i) => {
     const r = i + 2;
     const mediaTri = Number(agent.mediaTri) || 0;
-    const daysPerMonth = isAiAgent(agent.name) ? 30 : 20;
-    const hoursPerDay = isAiAgent(agent.name) ? 24 : 8;
+    const daysPerMonth = 20;
+    const hoursPerDay = 8;
     const resolvedPerDay = mediaTri / 3 / daysPerMonth;
     const resolvedPerHour = resolvedPerDay / hoursPerDay;
     const row = wsCap.addRow({
@@ -179,7 +179,7 @@ export async function buildDimensionamentoWorkbook(
       views: [{ showGridLines: true, state: "frozen", ySplit: 1, xSplit: 1 }],
     });
 
-    // O fator diário já contém os volumes de Care IA e Yooga Suporte. A grade
+    // O fator diário já contém o volume de Yooga Suporte. A grade
     // multiplica esse fator somente pelos humanos online na faixa da escala.
     const humanTeamAgents = data.teamAgents.filter(
       (agent) => !isAiAgent(agent.name) && !isSupportAgent(agent.name),

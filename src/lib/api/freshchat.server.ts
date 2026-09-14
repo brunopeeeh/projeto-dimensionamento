@@ -29,7 +29,7 @@ const ONBOARDING_GROUP_ID = "64f40e5f-b18a-4d1d-8c23-1fcb9575c5a7";
 // a migração. Toda sincronização as zera para preenchimento posterior na UI.
 const MANUAL_CAPACITY_AGENTS = [
   { name: "Yooga Suporte", mediaTri: 0 },
-  { name: "Care IA", mediaTri: 0 },
+  { name: "Care IA", mediaTri: 0, active: true },
 ];
 
 // Agent overrides applied after Freshchat sync. Edit here to adjust behavior
@@ -56,8 +56,8 @@ const RENAME_MAP: Record<string, string> = {
 };
 
 // Concurrency cap for the volume fetch (per-agent metric requests). Keeps us
-// polite to the Freshchat API.
-const VOLUME_CONCURRENCY = 2;
+// polite to the Freshchat API while optimizing throughput.
+const VOLUME_CONCURRENCY = 4;
 
 type FreshchatAgent = {
   id: string;
@@ -278,7 +278,7 @@ export function buildCapacityAgents(
   freshchatAgents: AgentVolume[],
   hubspotAgents: AgentVolume[],
   teamAgentNames: string[],
-): Array<{ name: string; mediaTri: number }> {
+): Array<{ name: string; mediaTri: number; active?: boolean }> {
   const humanAgents = mergeAgentVolumes(freshchatAgents, hubspotAgents)
     .filter(
       (agent) => !EXCLUDE_NAMES.includes(agent.name) && !EXCLUDE_NAMES.includes(lc(agent.name)),
@@ -312,35 +312,60 @@ export async function runFreshchatSync(req: FreshchatSyncRequest): Promise<Fresh
     return { name: renamed ?? fullName, wasRenamed: !!renamed };
   };
 
-  // As duas plataformas são independentes: durante a migração Freshchat →
-  // HubSpot, a queda de uma não pode zerar o volume da outra. Cada falha vira
-  // aviso na mensagem — número parcial nunca passa como completo. Se as duas
-  // falharem, o sync aborta em vez de gravar zeros.
+  // As duas plataformas são independentes: executadas em paralelo via Promise.allSettled.
+  // Durante a migração Freshchat → HubSpot, a queda de uma não pode zerar o volume da outra.
+  // Cada falha vira aviso na mensagem — número parcial nunca passa como completo.
+  // Se as duas falharem, o sync aborta em vez de gravar zeros.
+  const [freshchatResult, hubspotResult] = await Promise.allSettled([
+    (async () => {
+      const supportAgents = await getSupportAgents();
+      // Filtragem prévia: busca volumes apenas de agentes que realmente estão na escala
+      const relevantSupportAgents =
+        teamAgentNames && teamAgentNames.length > 0
+          ? supportAgents.filter((a) => {
+              const fullName = `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.id;
+              const { name } = applyRename(fullName);
+              return teamAgentNames.some((teamName) => matchAgentName(teamName, name));
+            })
+          : supportAgents;
+
+      const volumes = await getAgentVolumes90Days(relevantSupportAgents.map((a) => a.id));
+      return relevantSupportAgents.map((a) => {
+        const fullName = `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.id;
+        const { name, wasRenamed } = applyRename(fullName);
+        return { name, mediaTri: Math.round(volumes[a.id] || 0), wasRenamed };
+      });
+    })(),
+    (async () => {
+      const volumes = await getHubspotVolumes90Days(getWindow90Days(), teamAgentNames);
+      return volumes.map((h) => {
+        const { name, wasRenamed } = applyRename(h.name);
+        return { name, mediaTri: h.total, wasRenamed };
+      });
+    })(),
+  ]);
+
   let freshchatWarning = "";
   let freshchatAgents: AgentVolume[] = [];
-  try {
-    const supportAgents = await getSupportAgents();
-    const volumes = await getAgentVolumes90Days(supportAgents.map((a) => a.id));
-    freshchatAgents = supportAgents.map((a) => {
-      const fullName = `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.id;
-      const { name, wasRenamed } = applyRename(fullName);
-      return { name, mediaTri: Math.round(volumes[a.id] || 0), wasRenamed };
-    });
-  } catch (err) {
-    freshchatWarning = err instanceof Error ? err.message : String(err);
+  if (freshchatResult.status === "fulfilled") {
+    freshchatAgents = freshchatResult.value;
+  } else {
+    freshchatWarning =
+      freshchatResult.reason instanceof Error
+        ? freshchatResult.reason.message
+        : String(freshchatResult.reason);
     console.warn("[freshchat] volume ignorado neste sync:", freshchatWarning);
   }
 
-  // Helpdesk HubSpot: mesma janela de 90 dias, somado por nome de agente.
   let hubspotWarning = "";
   let hubspotAgents: AgentVolume[] = [];
-  try {
-    hubspotAgents = (await getHubspotVolumes90Days(getWindow90Days())).map((h) => {
-      const { name, wasRenamed } = applyRename(h.name);
-      return { name, mediaTri: h.total, wasRenamed };
-    });
-  } catch (err) {
-    hubspotWarning = err instanceof Error ? err.message : String(err);
+  if (hubspotResult.status === "fulfilled") {
+    hubspotAgents = hubspotResult.value;
+  } else {
+    hubspotWarning =
+      hubspotResult.reason instanceof Error
+        ? hubspotResult.reason.message
+        : String(hubspotResult.reason);
     console.warn("[hubspot] volume ignorado neste sync:", hubspotWarning);
   }
 

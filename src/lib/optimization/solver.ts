@@ -3,6 +3,7 @@ import type {
   AiSuggestionResponse,
   AiAgentSuggestion,
 } from "../api/ai-agent.server";
+import { getDefaultLunchTime } from "../time";
 
 const VALID_SHIFTS: ReadonlyArray<readonly [string, string]> = [
   ["07:00", "16:00"], // index 0
@@ -56,11 +57,13 @@ function buildProfiles(): Profile[] {
   for (let s = 0; s < VALID_SHIFTS.length; s++) {
     const [start] = VALID_SHIFTS[s];
     const startIdx = timeToIndex(start);
+    const lunchStartIdx = timeToIndex(getDefaultLunchTime(start));
 
-    // 9 hours = 54 blocks of 10 min
     const blocks = [];
     for (let i = 0; i < 54; i++) {
-      blocks.push((startIdx + i) % 144);
+      const block = (startIdx + i) % 144;
+      const isLunch = block >= lunchStartIdx && block < lunchStartIdx + 6;
+      if (!isLunch) blocks.push(block);
     }
 
     for (let c = 0; c < VALID_DAY_OFF_COMBOS.length; c++) {
@@ -83,45 +86,43 @@ function buildProfiles(): Profile[] {
   return profiles;
 }
 
+export type AgentNeedEstimate = {
+  quantity: number;
+  residualDeficit: number;
+  feasible: boolean;
+};
+
+function getResidualTotal(residual: Float64Array[]): number {
+  let sum = 0;
+  for (const day of residual) {
+    for (const value of day) {
+      if (value > 0) sum += value;
+    }
+  }
+  return sum;
+}
+
 /**
- * Fast greedy estimate of how many agents (1..maxAgents) are needed to cover
- * the whole deficit table, instead of the exact-4 combinatorial search used by
- * runMathSuggestion. At each step it picks the single valid shift+folga profile
- * that removes the most residual deficit, respecting the max-2-per-folga rule,
- * until the residual deficit reaches zero or maxAgents is hit.
- *
- * This is an approximation (greedy set-cover), not the globally optimal count —
- * but it's ~5000x cheaper than the exact search, which is required to keep it
- * safe to recompute on every keystroke (e.g. a KPI card on the dashboard).
+ * Greedy headcount estimate for the full week. Unlike the monthly hiring
+ * workflow, this calculation has no artificial agent cap: it repeats valid
+ * shift and day-off profiles until the deficit is covered or no valid profile
+ * can reach the remaining time blocks.
  */
-export function estimateAgentsNeeded(
-  req: { deficitTable: AiSuggestionRequest["deficitTable"] },
-  maxAgents = 6,
-): number {
+export function estimateAgentNeed(req: {
+  deficitTable: AiSuggestionRequest["deficitTable"];
+}): AgentNeedEstimate {
   const deficit = buildDeficitArray(req.deficitTable);
   const profiles = buildProfiles();
 
   const residual = deficit.map((day) => Float64Array.from(day));
-  const folgaCounts = new Int8Array(VALID_DAY_OFF_COMBOS.length);
-
-  const residualTotal = () => {
-    let sum = 0;
-    for (let d = 0; d < 7; d++) {
-      for (let b = 0; b < 144; b++) {
-        if (residual[d][b] > 0) sum += residual[d][b];
-      }
-    }
-    return sum;
-  };
-
   let chosen = 0;
-  while (chosen < maxAgents && residualTotal() > 0) {
+  let residualTotal = getResidualTotal(residual);
+
+  while (residualTotal > 0) {
     let bestIdx = -1;
     let bestCovered = 0;
 
     for (let p = 0; p < profiles.length; p++) {
-      if (folgaCounts[profiles[p].comboIndex] >= 2) continue; // Rule 6: max 2 agents per folga combo
-
       let covered = 0;
       const { coverage } = profiles[p];
       for (let d = 0; d < 7; d++) {
@@ -138,7 +139,7 @@ export function estimateAgentsNeeded(
       }
     }
 
-    if (bestIdx === -1) break; // no remaining profile can cover any more deficit
+    if (bestIdx === -1) break;
 
     const picked = profiles[bestIdx];
     for (let d = 0; d < 7; d++) {
@@ -146,11 +147,22 @@ export function estimateAgentsNeeded(
         residual[d][b] = Math.max(0, residual[d][b] - picked.coverage[d][b]);
       }
     }
-    folgaCounts[picked.comboIndex]++;
+    residualTotal = Math.max(0, residualTotal - bestCovered);
     chosen++;
   }
 
-  return chosen;
+  const roundedResidual = Number(residualTotal.toFixed(4));
+  return {
+    quantity: chosen,
+    residualDeficit: roundedResidual,
+    feasible: roundedResidual === 0,
+  };
+}
+
+export function estimateAgentsNeeded(req: {
+  deficitTable: AiSuggestionRequest["deficitTable"];
+}): number {
+  return estimateAgentNeed(req).quantity;
 }
 
 export function runMathSuggestion(req: AiSuggestionRequest): AiSuggestionResponse {

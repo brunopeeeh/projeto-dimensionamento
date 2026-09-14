@@ -2,16 +2,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useDimensionamento } from "@/context/DimensionamentoContext";
 import { buildDeficitTable, aiAgentsToNewHires, type AiAgentSuggestion } from "@/lib/ai-suggestion";
-import type { RowCalculation } from "@/context/types";
 
-/**
- * `rowsOverride` permite gerar sugestões sobre um grid simulado (ex.: o
- * simulador de cenários, que recalcula a escala com ausências e picos de
- * volume) em vez do grid real do mês. Sem ele, o comportamento é o do painel.
- */
-export function useAiSuggestion(rowsOverride?: RowCalculation[]) {
+export function useAiSuggestion() {
   const { currentMonth, rowCalculations, newHires, setNewHires } = useDimensionamento();
-  const rows = rowsOverride ?? rowCalculations;
 
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -27,18 +20,23 @@ export function useAiSuggestion(rowsOverride?: RowCalculation[]) {
   } | null>(null);
   const [aiResult, setAiResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const handleAiSuggest = async () => {
+  const handleAiSuggest = async (options?: { forceRefresh?: boolean }) => {
+    const forceRefresh = options?.forceRefresh ?? false;
     if (!currentMonth) {
       toast.error("Selecione um mês antes de gerar sugestão.");
       return;
     }
-    const table = buildDeficitTable(rows);
+    const table = buildDeficitTable(rowCalculations);
     if (table.length === 0) {
       toast.info("Sem defasagens detectadas na escala atual — IA não precisa agir.");
       return;
     }
     setAiLoading(true);
-    const loadingId = toast.loading(`Gerando sugestão IA (${currentMonth})…`);
+    const loadingId = toast.loading(
+      forceRefresh
+        ? `Recalculando análise IA sem cache (${currentMonth})…`
+        : `Consultando sugestão IA (${currentMonth})…`,
+    );
     try {
       const res = await fetch("/api/ai-suggestion", {
         method: "POST",
@@ -46,7 +44,7 @@ export function useAiSuggestion(rowsOverride?: RowCalculation[]) {
         body: JSON.stringify({
           month: currentMonth,
           deficitTable: table,
-          skipCache: true,
+          skipCache: forceRefresh,
         }),
       });
       const data = (await res.json()) as {
@@ -83,7 +81,7 @@ export function useAiSuggestion(rowsOverride?: RowCalculation[]) {
       toast.error("Selecione um mês antes de gerar otimização.");
       return;
     }
-    const table = buildDeficitTable(rows);
+    const table = buildDeficitTable(rowCalculations);
     if (table.length === 0) {
       toast.info("Sem defasagens detectadas na escala atual.");
       return;

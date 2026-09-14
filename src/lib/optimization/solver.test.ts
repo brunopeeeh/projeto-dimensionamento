@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runMathSuggestion, estimateAgentsNeeded } from "./solver";
+import { runMathSuggestion, estimateAgentNeed, estimateAgentsNeeded } from "./solver";
 import type { AiSuggestionRequest } from "../api/ai-agent.server";
 
 const VALID_FOLGA_COMBOS = [
@@ -102,11 +102,22 @@ describe("estimateAgentsNeeded", () => {
     expect(estimateAgentsNeeded({ deficitTable: table })).toBe(1);
   });
 
-  it("never exceeds maxAgents even under a very heavy deficit", () => {
-    const table = buildDeficitTable(); // heavy, spread across every day/time
-    const result = estimateAgentsNeeded({ deficitTable: table }, 3);
-    expect(result).toBeLessThanOrEqual(3);
-    expect(result).toBeGreaterThan(0);
+  it("accounts for the one-hour lunch break inside a nine-hour shift", () => {
+    const table = emptyDeficitTable();
+    for (const row of table) {
+      if (row.start >= "07:00" && row.start < "16:00") row.seg = 1;
+    }
+
+    expect(estimateAgentsNeeded({ deficitTable: table })).toBe(2);
+  });
+
+  it("does not stop at the former limit of 6 agents", () => {
+    const table = emptyDeficitTable();
+    const row = table.find((r) => r.start === "10:00")!;
+    row.seg = 4;
+    row.ter = 4;
+
+    expect(estimateAgentsNeeded({ deficitTable: table })).toBe(8);
   });
 
   it("needs more (or equal) agents for a heavier deficit than a lighter one", () => {
@@ -119,5 +130,16 @@ describe("estimateAgentsNeeded", () => {
     const heavyCount = estimateAgentsNeeded({ deficitTable: heavy });
 
     expect(heavyCount).toBeGreaterThanOrEqual(lightCount);
+  });
+
+  it("returns feasibility and residual deficit details", () => {
+    const table = emptyDeficitTable();
+    table.push({ start: "06:00", seg: 1, ter: 0, qua: 0, qui: 0, sex: 0, sab: 0, dom: 0 });
+
+    expect(estimateAgentNeed({ deficitTable: table })).toEqual({
+      quantity: 0,
+      residualDeficit: 1,
+      feasible: false,
+    });
   });
 });

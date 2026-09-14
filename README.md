@@ -18,9 +18,9 @@ O painel transforma volume de atendimentos e a escala ativa em uma visão por fa
 
 Estas regras refletem a operação enquanto a migração para o Helpdesk estiver ativa. A consolidação só deve ser desativada após uma decisão operacional, independentemente de uma data prevista:
 
-| Período | Atendimento | Regra de cobertura |
-| --- | --- | --- |
-| Terça a sábado | 07:00–03:00 | De 00:00 a 03:00, exatamente 1 agente na escala |
+| Período           | Atendimento | Regra de cobertura                              |
+| ----------------- | ----------- | ----------------------------------------------- |
+| Terça a sábado    | 07:00–03:00 | De 00:00 a 03:00, exatamente 1 agente na escala |
 | Domingo e segunda | 07:00–01:00 | De 00:00 a 01:00, exatamente 1 agente na escala |
 
 - O turno de referência da madrugada é **18:00–03:00**, realizado pela **Maria Luiza**.
@@ -39,6 +39,7 @@ Enquanto a migração estiver em andamento, os valores de **Care IA** e **Yooga 
 - **Prova Real:** simulação de novas contratações sobre a demanda consolidada.
 - **Capacidade:** médias trimestrais, fatores de TMA por dia e sincronização dos dados disponíveis.
 - **Exportação Excel:** reproduz a grade de volume, capacidade, resultado e agentes necessários com as mesmas regras do painel.
+- **Tira-dúvidas:** central pesquisável com conceitos, fórmulas, regras operacionais e exemplos baseados no período atual.
 
 ## Tecnologias
 
