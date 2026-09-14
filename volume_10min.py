@@ -192,11 +192,11 @@ def main():
         coluna_usar = coluna_chamado if coluna_chamado in chamados.columns else chamados.columns[0]
         df = pd.DataFrame({"data_evento": chamados[coluna_usar]})
         coluna_pivot = "data_evento"
-    elif args.por_chamado:
+    elif args.por_chamado or (arquivo_chamados_padrao.exists() and not args.forcar):
         if arquivo_chamados_padrao.exists() and not args.forcar:
-            print(f"ℹ️ Arquivo existente encontrado: {arquivo_chamados_padrao}")
-            print(f"   Carregando direto do disco (use --forcar para re-extrair da API).")
             chamados = pd.read_csv(arquivo_chamados_padrao)
+            print(f"ℹ️ Arquivo de chamados Databricks encontrado: {arquivo_chamados_padrao}")
+            print(f"   Carregando direto do disco ({len(chamados):,} chamados). Use --forcar para re-extrair da API.")
         else:
             client = HubSpotClient(max_req_per_sec=args.taxa)
             chamados = atribuicoes.buscar_chamados(
@@ -213,6 +213,7 @@ def main():
         df = pd.DataFrame({"data_evento": chamados[coluna_usar]})
         coluna_pivot = "data_evento"
     else:
+        print("ℹ️ Modo tickets brutos do CRM (sem varredura de threads). Para ciclos de conversas (Databricks), use --por-chamado.")
         df = extractor.extrair(args.inicio, args.fim, campo_periodo=campo_periodo)
         if df.empty:
             print(f"Nenhum ticket encontrado no período ({campo_periodo}). Verifique as datas.")
