@@ -82,6 +82,7 @@ storage/processed/*
 !storage/processed/.gitkeep
 storage/exports/*
 !storage/exports/.gitkeep
+!storage/exports/*.xlsx
 
 # Temporary files
 tmp/
